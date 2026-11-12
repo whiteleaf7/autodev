@@ -1,0 +1,19 @@
+{
+  "name": "@nagaya/harness",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node src/check.ts",
+    "eval": "node src/eval.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@nagaya/devboard": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}
