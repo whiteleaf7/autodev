@@ -103,22 +103,34 @@ export type RunResult = { code: number; output: string };
 
 export function run(command: string, args: string[], cwd: string, timeoutMs = 180_000): Promise<RunResult> {
   return new Promise((done) => {
-    const child = spawn(command, args, { cwd, env: SANDBOX_ENV, stdio: ["ignore", "pipe", "pipe"] });
+    // detached にして、時間切れのときにプロセスのグループごと止められるようにする
+    const child = spawn(command, args, { cwd, env: SANDBOX_ENV, stdio: ["ignore", "pipe", "pipe"], detached: true });
     let output = "";
     const collect = (chunk: Buffer) => {
       output += chunk.toString();
     };
     child.stdout.on("data", collect);
     child.stderr.on("data", collect);
-    const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
-    child.on("error", (e) => {
+    let settled = false;
+    const finish = (result: RunResult) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      done({ code: 127, output: e.message });
-    });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      done({ code: code ?? 124, output });
-    });
+      done(result);
+    };
+    const timer = setTimeout(() => {
+      // 固まったテストの孫プロセスがパイプを握ったままだと close が来ないので、グループを止めて、待たずに返す
+      if (child.pid) {
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch {
+          // すでに終わっている
+        }
+      }
+      finish({ code: 124, output });
+    }, timeoutMs);
+    child.on("error", (e) => finish({ code: 127, output: e.message }));
+    child.on("close", (code) => finish({ code: code ?? 124, output }));
   });
 }
 
