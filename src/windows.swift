@@ -2,12 +2,14 @@
 // 画面収録の許可がなくても、持ち主のプロセス・ID・位置と大きさは取れる（題名は許可があるときだけ入る）。
 // ウィンドウの ID は `screencapture -l <id>` でそのウィンドウだけを撮るのに使える。
 //
-// 使い方: swift tools/verify/src/windows.swift [持ち主の名前に含まれる文字列]
+// 使い方: swift tools/verify/src/windows.swift [--all] [持ち主の名前に含まれる文字列]
+// --all を付けると、画面に出ていないウィンドウ（ステージマネージャの別のステージ、最小化など）も含める。
 import CoreGraphics
 import Foundation
 
 struct WindowInfo: Encodable {
   let id: Int
+  let onScreen: Bool
   let pid: Int
   let owner: String
   let title: String?
@@ -22,8 +24,11 @@ struct Output: Encodable {
   let windows: [WindowInfo]
 }
 
-let ownerFilter = CommandLine.arguments.dropFirst().first?.lowercased()
-let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+let arguments = CommandLine.arguments.dropFirst()
+let includeOffscreen = arguments.contains("--all")
+let ownerFilter = arguments.first { $0 != "--all" }?.lowercased()
+let listOptions: CGWindowListOption = includeOffscreen ? [.optionAll, .excludeDesktopElements] : [.optionOnScreenOnly, .excludeDesktopElements]
+let raw = CGWindowListCopyWindowInfo(listOptions, kCGNullWindowID)
 let entries = (raw as? [[String: Any]]) ?? []
 
 let windows: [WindowInfo] = entries.compactMap { entry in
@@ -37,6 +42,7 @@ let windows: [WindowInfo] = entries.compactMap { entry in
   if let ownerFilter, !owner.lowercased().contains(ownerFilter) { return nil }
   return WindowInfo(
     id: id,
+    onScreen: entry[kCGWindowIsOnscreen as String] as? Bool ?? false,
     pid: pid,
     owner: owner,
     title: entry[kCGWindowName as String] as? String,
