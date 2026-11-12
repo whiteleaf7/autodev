@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install)",
+      "Bash(pnpm --filter @nagaya/* *)",
+      "Bash(pnpm dlx electrobun@2.0.6 *)",
+      "Bash(hutch *)",
+      "Bash(bun run *)",
+      "Bash(bun build *)",
+      "Bash(bun test *)",
+      "Bash(screencapture *)"
+    ]
+  },
+  "autoMode": {
+    "environment": [
+      "$defaults",
+      "This is the user's own repository (nagaya). Its toolchain is trusted: pnpm workspace scripts, Bun, and Electrobun 2.x with its Hutch toolchain, which Electrobun downloads and verifies from github.com/blackboardsh/electrobun releases on first use and caches under ~/.hutch. Running these to build, launch and verify the app is expected work.",
+      "Launching the app under development and its daemon, stopping them, and measuring them (ps, memory, window list, screenshots saved under .dev/) is expected verification work."
+    ]
+  }
+}
