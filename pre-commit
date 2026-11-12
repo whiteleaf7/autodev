@@ -1,0 +1,4 @@
+#!/bin/sh
+# コミットの前に、ゲート（pnpm check）と、無視されているファイルの混入を確かめる。
+# 有効にするには: git config core.hooksPath .githooks（pnpm install でも設定される）
+exec node tools/harness/src/hook.ts pre-commit

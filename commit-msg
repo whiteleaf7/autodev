@@ -1,0 +1,3 @@
+#!/bin/sh
+# コミットメッセージの決まり（Conventional Commits、英語の件名、Task: の行）を確かめる
+exec node tools/harness/src/hook.ts commit-msg "$1"
