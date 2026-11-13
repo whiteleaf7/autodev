@@ -71,7 +71,7 @@ try {
           const path = join(dir, mutant.file);
           const original = readFileSync(path, "utf8");
           writeFileSync(path, mutant.mutated);
-          const { code } = await run("sh", ["-c", "pnpm --silent typecheck && pnpm --silent test"], join(dir, packageOf(mutant.file) ?? "."), 90_000);
+          const { code } = await run("sh", ["-c", "pnpm --silent typecheck && pnpm --silent test"], join(dir, packageOf(mutant.file) ?? "."), {}, 90_000);
           writeFileSync(path, original);
           if (code === 0) survivors.push(mutant);
         }

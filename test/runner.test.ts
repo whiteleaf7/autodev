@@ -48,6 +48,9 @@ test("シナリオは family と kind の組み合わせを検証する", () => 
   assert.ok(!Scenario.safeParse({ ...base, family: "docs", kind: "bad" }).success, "編集が無い");
   assert.ok(!Scenario.safeParse({ ...base, family: "docs", kind: "query", query: "q", expect: ["T-001"] }).success);
   assert.ok(!Scenario.safeParse({ ...base, family: "commits", kind: "bad", edits }).success, "commit が無い");
+  const board = [{ op: "create_task", args: { title: "x", status: "wip" } }];
+  assert.ok(Scenario.safeParse({ ...base, family: "records", kind: "bad", board }).success, "不正な入力も、ボードに当てる例として読める");
+  assert.ok(!Scenario.safeParse({ ...base, family: "docs", kind: "bad", edits, board }).success, "board は records だけ");
 });
 
 test("止めた数と引き出せた数を足し、誤検出は 2 点引く", () => {

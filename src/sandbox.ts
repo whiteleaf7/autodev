@@ -101,10 +101,10 @@ export function applyEdits(dir: string, edits: Edit[]): string | null {
 
 export type RunResult = { code: number; output: string };
 
-export function run(command: string, args: string[], cwd: string, timeoutMs = 180_000): Promise<RunResult> {
+export function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}, timeoutMs = 180_000): Promise<RunResult> {
   return new Promise((done) => {
     // detached にして、時間切れのときにプロセスのグループごと止められるようにする
-    const child = spawn(command, args, { cwd, env: SANDBOX_ENV, stdio: ["ignore", "pipe", "pipe"], detached: true });
+    const child = spawn(command, args, { cwd, env: { ...SANDBOX_ENV, ...env }, stdio: ["ignore", "pipe", "pipe"], detached: true });
     let output = "";
     const collect = (chunk: Buffer) => {
       output += chunk.toString();

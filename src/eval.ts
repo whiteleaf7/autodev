@@ -3,10 +3,11 @@
 // heldout は集計だけを出す（改善する側が中身を知らないことが、最終評価の前提のため）。
 
 import { execFileSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
-import { availableParallelism } from "node:os";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { availableParallelism, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { board } from "@nagaya/devboard/src/board-db.ts";
 import { loadScenarios, type Scenario } from "./scenario.ts";
 import { applyEdits, cloneTemplate, createTemplate, removeDir, run } from "./sandbox.ts";
 import { formatSummary, summarize, type Outcome, type Result } from "./score.ts";
@@ -20,33 +21,49 @@ function gateCommand(): string {
   return "check" in scripts ? "pnpm check" : "pnpm typecheck && pnpm test";
 }
 
-async function judge(scenario: Scenario, template: string, gate: string): Promise<Result> {
+// ボードは git の外の SQLite にある（決定記録 0011）。いまのボードの写しを 1 つ取り、シナリオごとにそれを複製して渡す
+function snapshotBoard(): string {
+  const file = join(mkdtempSync(join(tmpdir(), "nagaya-eval-board-")), "board.sqlite");
+  board().exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
+  return file;
+}
+
+async function judge(scenario: Scenario, template: string, gate: string, boardSnapshot: string): Promise<Result> {
   const dir = cloneTemplate(template);
+  // 複製の外に置く（複製の中だと、ゲートが追跡していないファイルとして読む）
+  const boardFile = `${dir}.board.sqlite`;
+  copyFileSync(boardSnapshot, boardFile);
+  const env = { NAGAYA_BOARD: boardFile };
   try {
     const problem = applyEdits(dir, scenario.edits);
     if (problem) return { scenario, outcome: "inapplicable", detail: problem };
 
     if (scenario.kind === "query") {
-      const { code, output } = await run("pnpm", ["--silent", "recall", "--json", scenario.query ?? ""], dir);
+      const { code, output } = await run("pnpm", ["--silent", "recall", "--json", scenario.query ?? ""], dir, env);
       const ids = code === 0 ? topIds(output) : [];
       const hit = (scenario.expect ?? []).some((id) => ids.includes(id));
       return { scenario, outcome: hit ? "hit" : "no-hit", detail: ids.join(", ") };
     }
 
-    const { code, output } = scenario.commit ? await commit(dir, scenario.commit) : await run("sh", ["-c", gate], dir);
+    const { code, output } = scenario.board.length
+      ? await run("node", ["tools/devboard/src/ops-cli.ts", JSON.stringify(scenario.board)], dir, env)
+      : scenario.commit
+        ? await commit(dir, scenario.commit, env)
+        : await run("sh", ["-c", gate], dir, env);
     const stopped = code !== 0;
     const outcome: Outcome = scenario.kind === "bad" ? (stopped ? "caught" : "missed") : stopped ? "false-alarm" : "passed";
     return { scenario, outcome, detail: stopped ? lastLines(output) : "" };
   } finally {
     removeDir(dir);
+    for (const suffix of ["", "-wal", "-shm"]) removeDir(boardFile + suffix);
   }
 }
 
-async function commit(dir: string, { message, stage }: NonNullable<Scenario["commit"]>) {
+async function commit(dir: string, { message, stage }: NonNullable<Scenario["commit"]>, env: NodeJS.ProcessEnv) {
   if (existsSync(join(dir, ".githooks"))) await run("git", ["config", "core.hooksPath", ".githooks"], dir);
   const added = await run("git", ["add", "-f", "--", ...stage], dir);
   if (added.code !== 0) return added;
-  return run("git", ["commit", "-m", message], dir);
+  return run("git", ["commit", "-m", message], dir, env);
 }
 
 function topIds(output: string): string[] {
@@ -105,12 +122,13 @@ const scenarios = loadScenarios(join(ROOT, "tools/harness/eval", values.set)).fi
   (s) => !values.family || s.family === values.family,
 );
 const template = createTemplate(ROOT);
+const boardSnapshot = snapshotBoard();
 try {
   if (values.validate) {
     process.exitCode = validate(scenarios, template) ? 1 : 0;
   } else {
     const gate = gateCommand();
-    const results = await pool(scenarios, Math.max(2, Math.floor(availableParallelism() / 2)), (s) => judge(s, template, gate));
+    const results = await pool(scenarios, Math.max(2, Math.floor(availableParallelism() / 2)), (s) => judge(s, template, gate, boardSnapshot));
     const summary = summarize(results);
     if (values.set === "public") {
       for (const r of results) console.log(`[${r.outcome}] ${r.scenario.id} ${r.scenario.class}: ${r.scenario.title}${r.detail ? `\n    ${r.detail}` : ""}`);
@@ -128,4 +146,5 @@ try {
   }
 } finally {
   removeDir(template);
+  removeDir(resolve(boardSnapshot, ".."));
 }
