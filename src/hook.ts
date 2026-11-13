@@ -5,7 +5,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { checkMessage, taskIdsOf } from "./commit.ts";
+import { boardFilesOutsideMain, checkMessage, taskIdsOf } from "./commit.ts";
 import { withoutGitEnv } from "./env.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
@@ -29,6 +29,9 @@ function preCommit(): void {
   if (ignored.length) {
     fail(ignored.map((path) => `${path} は .gitignore で無視されているファイル。コミットに入れない（git restore --staged ${path}）`));
   }
+  const [gitDir, commonDir] = git(["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"]).trim().split("\n");
+  const boardFiles = boardFilesOutsideMain(stagedPaths("ACMRD"), gitDir !== commonDir);
+  if (boardFiles.length) fail(boardFiles);
   const { status } = spawnSync("pnpm", ["check"], { cwd: ROOT, stdio: "inherit", env: withoutGitEnv(process.env) });
   if (status !== 0) process.exit(status ?? 1);
 }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkMessage, taskIdsOf } from "../src/commit.ts";
+import { boardFilesOutsideMain, checkMessage, taskIdsOf } from "../src/commit.ts";
 import { applyEdits } from "../src/sandbox.ts";
 import { Scenario } from "../src/scenario.ts";
 import { summarize, type Outcome } from "../src/score.ts";
@@ -86,4 +86,13 @@ test("コミットメッセージの決まりを確かめる", () => {
   assert.match(ok("chore: close task", ["T-001"])[0] ?? "", /Task: T-001/);
   assert.match(ok("chore: close task\n\nTask: T-002", ["T-001"])[0] ?? "", /Task: T-001/);
   assert.deepEqual(taskIdsOf(["dev/tasks/T-012.json", "dev/project.json", "tools/a.ts"]), ["T-012"]);
+});
+
+test("作業用の worktree では、ボードのファイルをコミットさせない", () => {
+  const staged = ["tools/a.ts", "dev/tasks/T-001.json", "docs/decisions/0001-a.md", "docs/harness.md"];
+  assert.deepEqual(boardFilesOutsideMain(staged, false), [], "main の worktree では止めない");
+  const problems = boardFilesOutsideMain(staged, true);
+  assert.equal(problems.length, 2);
+  assert.match(problems[0] ?? "", /dev\/tasks\/T-001\.json.*main/);
+  assert.match(problems[1] ?? "", /docs\/decisions\/0001-a\.md/);
 });

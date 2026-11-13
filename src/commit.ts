@@ -16,6 +16,16 @@ export function taskIdsOf(paths: string[]): string[] {
   return paths.map((path) => /^dev\/tasks\/(T-\d+)\.json$/.exec(path)?.[1]).filter((id): id is string => id !== undefined);
 }
 
+const BOARD_FILE = /^(dev|docs\/decisions)\//;
+
+// ボードは main の worktree に 1 つだけ持つ（決定記録 0010）。作業用の worktree にあるのは古い写しなので、コミットしない
+export function boardFilesOutsideMain(staged: string[], linkedWorktree: boolean): string[] {
+  if (!linkedWorktree) return [];
+  return staged
+    .filter((path) => BOARD_FILE.test(path))
+    .map((path) => `${path} はボードのファイル。ボードは main の worktree で管理するので、作業用の worktree ではコミットしない（git restore --staged ${path}）`);
+}
+
 export function checkMessage(message: string, facts: CommitFacts): string[] {
   const lines = message.split("\n").filter((line) => !line.startsWith("#"));
   const subject = lines.find((line) => line.trim()) ?? "";
