@@ -3,9 +3,10 @@
 //   node tools/harness/src/hook.ts commit-msg <ファイル>   コミットメッセージの決まりを確かめる
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { boardFilesOutsideMain, checkMessage, taskIdsOf } from "./commit.ts";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { readTasks } from "@nagaya/devboard/src/store.ts";
+import { decisionFilesOutsideMain, checkMessage } from "./commit.ts";
 import { withoutGitEnv } from "./env.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
@@ -30,18 +31,15 @@ function preCommit(): void {
     fail(ignored.map((path) => `${path} は .gitignore で無視されているファイル。コミットに入れない（git restore --staged ${path}）`));
   }
   const [gitDir, commonDir] = git(["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"]).trim().split("\n");
-  const boardFiles = boardFilesOutsideMain(stagedPaths("ACMRD"), gitDir !== commonDir);
-  if (boardFiles.length) fail(boardFiles);
+  const decisionFiles = decisionFilesOutsideMain(stagedPaths("ACMRD"), gitDir !== commonDir);
+  if (decisionFiles.length) fail(decisionFiles);
   const { status } = spawnSync("pnpm", ["check"], { cwd: ROOT, stdio: "inherit", env: withoutGitEnv(process.env) });
   if (status !== 0) process.exit(status ?? 1);
 }
 
 function commitMsg(file: string | undefined): void {
   if (!file || !existsSync(file)) fail(["コミットメッセージのファイルが渡されていない"]);
-  const tasksDir = join(ROOT, "dev/tasks");
-  const changedTasks = taskIdsOf(stagedPaths("ACMRD"));
-  const onBoard = existsSync(tasksDir) ? taskIdsOf(readdirSync(tasksDir).map((name) => `dev/tasks/${name}`)) : [];
-  const problems = checkMessage(readFileSync(file, "utf8"), { changedTasks, existingTasks: new Set([...onBoard, ...changedTasks]) });
+  const problems = checkMessage(readFileSync(file, "utf8"), { existingTasks: new Set(readTasks().tasks.map((t) => t.id)) });
   if (problems.length) fail(problems);
 }
 

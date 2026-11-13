@@ -111,7 +111,11 @@ function missingScript(command: string, facts: Facts): string | null {
 
 function checkDoc(file: string, text: string, facts: Facts): Problem[] {
   const problems: Problem[] = [];
-  const add = (check: string, line: number, message: string) => problems.push({ check, file, line, message });
+  // 決定記録は、その時点の判断の記録。あとで消えたり移ったりしたパスに触れていても正しい
+  const historical = file.startsWith("docs/decisions/");
+  const add = (check: string, line: number, message: string) => {
+    if (!(historical && check === "missing-path")) problems.push({ check, file, line, message });
+  };
 
   for (const { text: snippet, line } of codeSnippets(text)) {
     for (const m of snippet.matchAll(/(?<![\w-])pnpm\s+([^|;&`]+)/g)) {

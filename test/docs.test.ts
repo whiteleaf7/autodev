@@ -36,6 +36,8 @@ test("無いパスへの言及を見つける", () => {
     [],
     "無視されるパス、例示、これから作るディレクトリは通す",
   );
+  const decision = "# 0009. 昔の決定\n\n- 状態: 置き換え\n\nボードは `docs/products.md` に置いていた（[当時](docs/products.md)）\n";
+  assert.deepEqual(checksOf("", { "docs/decisions/0009-old.md": decision }), [], "決定記録は当時の記録なので、いまは無いパスにも触れてよい");
 });
 
 test("無い決定記録と、登録されていない MCP ツールへの言及を見つける", () => {

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { boardFilesOutsideMain, checkMessage, taskIdsOf } from "../src/commit.ts";
+import { decisionFilesOutsideMain, checkMessage } from "../src/commit.ts";
 import { applyEdits } from "../src/sandbox.ts";
 import { Scenario } from "../src/scenario.ts";
 import { summarize, type Outcome } from "../src/score.ts";
@@ -73,26 +73,21 @@ test("止めた数と引き出せた数を足し、誤検出は 2 点引く", ()
 });
 
 test("コミットメッセージの決まりを確かめる", () => {
-  const facts = { changedTasks: [], existingTasks: new Set(["T-001", "T-002"]) };
-  const ok = (message: string, changed: string[] = []) => checkMessage(message, { ...facts, changedTasks: changed });
+  const ok = (message: string) => checkMessage(message, { existingTasks: new Set(["T-001", "T-002"]) });
   assert.deepEqual(ok("feat: add recall tool"), []);
-  assert.deepEqual(ok("fix(devboard)!: reject unknown hosts\n\nTask: T-001, T-002", ["T-001", "T-002"]), []);
+  assert.deepEqual(ok("fix(devboard)!: reject unknown hosts\n\nTask: T-001, T-002"), []);
   assert.deepEqual(ok('Revert "feat: add recall tool"'), []);
   assert.equal(ok("update docs").length, 1);
   assert.equal(ok("feature: add tool").length, 1);
   assert.equal(ok("docs:").length, 1);
   assert.match(ok("docs: 調査メモを追加")[0] ?? "", /英語/);
   assert.match(ok("docs: add note\n\nTask: T-777")[0] ?? "", /T-777/);
-  assert.match(ok("chore: close task", ["T-001"])[0] ?? "", /Task: T-001/);
-  assert.match(ok("chore: close task\n\nTask: T-002", ["T-001"])[0] ?? "", /Task: T-001/);
-  assert.deepEqual(taskIdsOf(["dev/tasks/T-012.json", "dev/project.json", "tools/a.ts"]), ["T-012"]);
 });
 
-test("作業用の worktree では、ボードのファイルをコミットさせない", () => {
-  const staged = ["tools/a.ts", "dev/tasks/T-001.json", "docs/decisions/0001-a.md", "docs/harness.md"];
-  assert.deepEqual(boardFilesOutsideMain(staged, false), [], "main の worktree では止めない");
-  const problems = boardFilesOutsideMain(staged, true);
-  assert.equal(problems.length, 2);
-  assert.match(problems[0] ?? "", /dev\/tasks\/T-001\.json.*main/);
-  assert.match(problems[1] ?? "", /docs\/decisions\/0001-a\.md/);
+test("作業用の worktree では、決定記録をコミットさせない", () => {
+  const staged = ["tools/a.ts", "dev/harness/history.jsonl", "docs/decisions/0001-a.md", "docs/harness.md"];
+  assert.deepEqual(decisionFilesOutsideMain(staged, false), [], "main の worktree では止めない");
+  const problems = decisionFilesOutsideMain(staged, true);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0] ?? "", /docs\/decisions\/0001-a\.md.*main/);
 });
