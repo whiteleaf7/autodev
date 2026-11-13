@@ -37,7 +37,9 @@ const chromeInstalled = existsSync(
   process.env.NAGAYA_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 );
 
-test("ページを撮り、撮る前に指定の要素をクリックし、コンソールのエラーも返す", { skip: !chromeInstalled && "Chrome がない" }, async () => {
+test("ページを撮り、撮る前に指定の要素をクリックし、コンソールのエラーも返す", {
+  skip: !chromeInstalled && "Chrome がない",
+}, async () => {
   const html = `<p id="ready">hi</p><button id="b" onclick="console.error('clicked')">b</button><script>console.error("boom")</script>`;
   const out = join(await mkdtemp(join(tmpdir(), "nagaya-verify-test-")), "page.png");
   const result = await screenshot({

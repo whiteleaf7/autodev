@@ -8,8 +8,7 @@ import { join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseDevToolsActivePort, parseScreenshotArgs, type ScreenshotOptions } from "./options.ts";
 
-const chromePath =
-  process.env.NAGAYA_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const chromePath = process.env.NAGAYA_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 type CdpEvent = { method: string; params: Record<string, unknown>; sessionId?: string };
 
@@ -117,7 +116,8 @@ export async function screenshot(options: ScreenshotOptions): Promise<{ out: str
       const { sessionId } = await cdp.send<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
       const page = <T>(method: string, params?: Record<string, unknown>) => cdp.send<T>(method, params, sessionId);
       const evaluate = async (expression: string) =>
-        (await page<{ result: { value?: unknown } }>("Runtime.evaluate", { expression, returnByValue: true })).result.value;
+        (await page<{ result: { value?: unknown } }>("Runtime.evaluate", { expression, returnByValue: true })).result
+          .value;
 
       await page("Runtime.enable");
       await page("Emulation.setDeviceMetricsOverride", {
@@ -127,9 +127,17 @@ export async function screenshot(options: ScreenshotOptions): Promise<{ out: str
         mobile: false,
       });
       await page("Page.navigate", { url: options.url });
-      await waitUntil(async () => (await evaluate("document.readyState")) === "complete", options.timeoutMs, "読み込みが終わらない");
+      await waitUntil(
+        async () => (await evaluate("document.readyState")) === "complete",
+        options.timeoutMs,
+        "読み込みが終わらない",
+      );
       const appears = (selector: string) =>
-        waitUntil(async () => (await evaluate(`!!document.querySelector(${JSON.stringify(selector)})`)) === true, options.timeoutMs, `${selector} が出ない`);
+        waitUntil(
+          async () => (await evaluate(`!!document.querySelector(${JSON.stringify(selector)})`)) === true,
+          options.timeoutMs,
+          `${selector} が出ない`,
+        );
       if (options.waitFor) await appears(options.waitFor);
       for (const selector of options.click) {
         await appears(selector);
