@@ -32,7 +32,11 @@ const OPERATORS: Operator[] = [
   { label: "every を some に", pattern: /\.every\(/g, replace: to(".some(") },
   { label: "some を every に", pattern: /\.some\(/g, replace: to(".every(") },
   { label: "否定を外す", pattern: /!(?=[A-Za-z_$(])/g, replace: to("") },
-  { label: "条件つきの return / throw を消す", pattern: /^[ \t]*if \([^\n]*\) (?:return|throw)\b[^\n]*;[ \t]*$/gm, replace: blank },
+  {
+    label: "条件つきの return / throw を消す",
+    pattern: /^[ \t]*if \([^\n]*\) (?:return|throw)\b[^\n]*;[ \t]*$/gm,
+    replace: blank,
+  },
   { label: "throw を消す", pattern: /^[ \t]*throw new Error\([^\n]*\);[ \t]*$/gm, replace: blank },
 ];
 
@@ -42,7 +46,10 @@ function mutantsOf(file: string, text: string): Mutant[] {
   const { code } = scan(text);
   return OPERATORS.flatMap(({ label, pattern, replace }) =>
     [...code.matchAll(pattern)].map((m) => {
-      const mutated = text.slice(0, m.index) + replace(text.slice(m.index, m.index + m[0].length)) + text.slice(m.index + m[0].length);
+      const mutated =
+        text.slice(0, m.index) +
+        replace(text.slice(m.index, m.index + m[0].length)) +
+        text.slice(m.index + m[0].length);
       const line = lineOf(text, m.index + m[0].search(/\S/));
       return { file, line, label, before: text.split("\n")[line - 1]!.trim(), mutated };
     }),
@@ -55,7 +62,8 @@ const targets = requested.length
   ? requested
   : repo.files.filter((f) => /^tools\/[^/]+\/(src\/.+\.ts|public\/.+\.js)$/.test(f) && !f.startsWith("tools/harness/"));
 const packages = packageDirs(repo).filter(Boolean);
-const packageOf = (file: string) => packages.filter((dir) => file.startsWith(`${dir}/`)).sort((a, b) => b.length - a.length)[0];
+const packageOf = (file: string) =>
+  packages.filter((dir) => file.startsWith(`${dir}/`)).sort((a, b) => b.length - a.length)[0];
 
 const mutants = targets.flatMap((file) => mutantsOf(file, repo.read(file) ?? ""));
 const template = createTemplate(ROOT);
@@ -71,7 +79,13 @@ try {
           const path = join(dir, mutant.file);
           const original = readFileSync(path, "utf8");
           writeFileSync(path, mutant.mutated);
-          const { code } = await run("sh", ["-c", "pnpm --silent typecheck && pnpm --silent test"], join(dir, packageOf(mutant.file) ?? "."), {}, 90_000);
+          const { code } = await run(
+            "sh",
+            ["-c", "pnpm --silent typecheck && pnpm --silent test"],
+            join(dir, packageOf(mutant.file) ?? "."),
+            {},
+            90_000,
+          );
           writeFileSync(path, original);
           if (code === 0) survivors.push(mutant);
         }

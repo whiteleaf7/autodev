@@ -19,7 +19,9 @@ const repo = loadRepo(ROOT);
 const problems = [...checkGate(repo), ...checkConventions(repo), ...checkRecords(repo), ...checkDocs(repo)];
 if (problems.length) {
   for (const problem of problems) console.error(formatProblem(problem));
-  console.error(`\n${problems.length} 件の問題がある。直してから、もう一度 pnpm check を実行する（型チェックとテストは、これが通ってから走る）`);
+  console.error(
+    `\n${problems.length} 件の問題がある。直してから、もう一度 pnpm check を実行する（型チェックとテストは、これが通ってから走る）`,
+  );
   process.exit(1);
 }
 

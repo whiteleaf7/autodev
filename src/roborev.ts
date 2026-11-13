@@ -27,10 +27,13 @@ export function roborevNotices(doctorOutput: string): string[] {
   try {
     json = JSON.parse(doctorOutput);
   } catch {
-    return [`roborev doctor --json の出力が JSON ではない。roborev doctor を手で実行して確かめる: ${doctorOutput.trim().slice(0, 200)}`];
+    return [
+      `roborev doctor --json の出力が JSON ではない。roborev doctor を手で実行して確かめる: ${doctorOutput.trim().slice(0, 200)}`,
+    ];
   }
   const report = DoctorReport.safeParse(json);
-  if (!report.success) return ["roborev doctor --json の出力の形が変わった。tools/harness/src/roborev.ts の DoctorReport を合わせる"];
+  if (!report.success)
+    return ["roborev doctor --json の出力の形が変わった。tools/harness/src/roborev.ts の DoctorReport を合わせる"];
 
   return report.data.checks
     .filter((check) => !QUIET_STATUSES.has(check.status) && !ACCEPTED.has(check.id))

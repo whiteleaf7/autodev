@@ -62,7 +62,8 @@ async function withLandLock<T>(lock: string, branch: string, fn: () => T): Promi
         rmSync(lock, { recursive: true, force: true });
         continue;
       }
-      if (Date.now() > deadline) throw new LandError(`取り込みのロック ${lock} が ${WAIT_MS / 60_000} 分たっても外れない`);
+      if (Date.now() > deadline)
+        throw new LandError(`取り込みのロック ${lock} が ${WAIT_MS / 60_000} 分たっても外れない`);
       if (!announced && owner) console.error(`land: ${owner.branch} の取り込みが終わるのを待っている`);
       announced = true;
       await new Promise((r) => setTimeout(r, POLL_MS));
@@ -87,18 +88,24 @@ function rebase(top: string, onto: string): void {
 
 function gate(top: string): void {
   const { status } = spawnSync("pnpm", ["check"], { cwd: top, stdio: "inherit", env: withoutGitEnv(process.env) });
-  if (status !== 0) throw new LandError("ゲート（pnpm check）が通らなかった。取り込みはしていない。直してコミットし、もう一度 pnpm land を実行する");
+  if (status !== 0)
+    throw new LandError(
+      "ゲート（pnpm check）が通らなかった。取り込みはしていない。直してコミットし、もう一度 pnpm land を実行する",
+    );
 }
 
 async function land(): Promise<void> {
   const top = realpathSync(gitOut(process.cwd(), ["rev-parse", "--show-toplevel"]));
   const [main] = parseWorktrees(gitOut(top, ["worktree", "list", "--porcelain"]));
-  if (!main || realpathSync(main.path) === top) throw new LandError("main の worktree では使わない。作業用の worktree の中で実行する");
+  if (!main || realpathSync(main.path) === top)
+    throw new LandError("main の worktree では使わない。作業用の worktree の中で実行する");
   if (!main.branch) throw new LandError(`main の worktree（${main.path}）がブランチを開いていない`);
   const branch = gitOut(top, ["branch", "--show-current"]);
   if (!branch) throw new LandError("ブランチの上で実行する（detached HEAD になっている）");
-  if (gitOut(top, ["status", "--porcelain"])) throw new LandError("コミットしていない変更か、追跡していないファイルがある。コミットするか片付けてから実行する");
-  if (gitOut(top, ["rev-list", "--count", `${main.branch}..${branch}`]) === "0") throw new LandError(`${main.branch} に無いコミットが無い`);
+  if (gitOut(top, ["status", "--porcelain"]))
+    throw new LandError("コミットしていない変更か、追跡していないファイルがある。コミットするか片付けてから実行する");
+  if (gitOut(top, ["rev-list", "--count", `${main.branch}..${branch}`]) === "0")
+    throw new LandError(`${main.branch} に無いコミットが無い`);
 
   const lock = join(gitOut(top, ["rev-parse", "--path-format=absolute", "--git-common-dir"]), "nagaya-land.lock");
   await withLandLock(lock, branch, () => {
@@ -109,7 +116,9 @@ async function land(): Promise<void> {
       if (merged.ok) break;
       const mainMoved = !git(top, ["merge-base", "--is-ancestor", main.branch!, branch]).ok;
       if (!mainMoved || attempt === ATTEMPTS) {
-        throw new LandError(`main の worktree（${main.path}）で fast-forward できなかった。取り込みはしていない: ${merged.out}`);
+        throw new LandError(
+          `main の worktree（${main.path}）で fast-forward できなかった。取り込みはしていない: ${merged.out}`,
+        );
       }
       console.error(`land: ゲートの間に ${main.branch} が進んだので、rebase からやり直す`);
     }

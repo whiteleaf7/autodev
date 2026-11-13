@@ -2,7 +2,19 @@
 // 複製は基点のコミットを持つ git リポジトリなので、ゲートは HEAD との差分を見られる。
 
 import { execFileSync, spawn } from "node:child_process";
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import type { Edit } from "./scenario.ts";
@@ -51,7 +63,11 @@ export function createTemplate(repoRoot: string): string {
   // .gitignore の「node_modules/」は、リンクを含むディレクトリの中身までは隠さない場合に備える
   mkdirSync(join(template, ".git", "info"), { recursive: true });
   writeFileSync(join(template, ".git", "info", "exclude"), "node_modules\n");
-  for (const [key, value] of [["user.name", "harness-eval"], ["user.email", "harness-eval@localhost"], ["commit.gpgsign", "false"]] as const) {
+  for (const [key, value] of [
+    ["user.name", "harness-eval"],
+    ["user.email", "harness-eval@localhost"],
+    ["commit.gpgsign", "false"],
+  ] as const) {
     git(template, ["config", key, value]);
   }
   git(template, ["add", "-A"]);
@@ -93,7 +109,10 @@ export function applyEdits(dir: string, edits: Edit[]): string | null {
       const text = readFileSync(file, "utf8");
       const count = text.split(edit.find).length - 1;
       if (count !== 1) return `${edit.file}: find が ${count} 回現れる（1 回のはず）`;
-      writeFileSync(file, text.replace(edit.find, () => edit.replace));
+      writeFileSync(
+        file,
+        text.replace(edit.find, () => edit.replace),
+      );
     }
   }
   return null;
@@ -101,10 +120,21 @@ export function applyEdits(dir: string, edits: Edit[]): string | null {
 
 export type RunResult = { code: number; output: string };
 
-export function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}, timeoutMs = 180_000): Promise<RunResult> {
+export function run(
+  command: string,
+  args: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv = {},
+  timeoutMs = 180_000,
+): Promise<RunResult> {
   return new Promise((done) => {
     // detached にして、時間切れのときにプロセスのグループごと止められるようにする
-    const child = spawn(command, args, { cwd, env: { ...SANDBOX_ENV, ...env }, stdio: ["ignore", "pipe", "pipe"], detached: true });
+    const child = spawn(command, args, {
+      cwd,
+      env: { ...SANDBOX_ENV, ...env },
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
+    });
     let output = "";
     const collect = (chunk: Buffer) => {
       output += chunk.toString();

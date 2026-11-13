@@ -30,7 +30,11 @@ for (const worktree of plan.remove) {
   const removed = git(main.path, ["worktree", "remove", worktree.path]);
   const deleted = removed.ok ? git(main.path, ["branch", "-d", worktree.branch!]) : removed;
   failed ||= !deleted.ok;
-  console.log(deleted.ok ? `片付けた: ${worktree.path}（${worktree.branch}）` : `片付けられなかった: ${worktree.path}: ${deleted.out}`);
+  console.log(
+    deleted.ok
+      ? `片付けた: ${worktree.path}（${worktree.branch}）`
+      : `片付けられなかった: ${worktree.path}: ${deleted.out}`,
+  );
 }
 for (const { worktree, reason } of plan.keep.slice(1)) console.log(`残した: ${worktree.path}（${reason}）`);
 if (failed) process.exit(1);

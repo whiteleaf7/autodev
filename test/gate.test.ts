@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { checkGate } from "../src/checks/gate.ts";
 import { memoryRepo } from "../src/repo.ts";
 
-const checksOf = (now: Record<string, string>, base?: Record<string, string>) => checkGate(memoryRepo(now, base)).map((p) => p.check);
+const checksOf = (now: Record<string, string>, base?: Record<string, string>) =>
+  checkGate(memoryRepo(now, base)).map((p) => p.check);
 
 const passing = `import { test } from "node:test";\ntest("a", () => {\n  assert.equal(1, 1);\n});\n`;
 
@@ -21,26 +22,49 @@ test("テストが基点より減ったら止め、パッケージの中での�
   const manifest = { "tools/x/package.json": `{"scripts":{"typecheck":"tsc --noEmit","test":"node --test"}}` };
   const base = { ...manifest, "tools/x/test/a.test.ts": passing, "tools/x/test/b.test.ts": passing };
   assert.deepEqual(checksOf({ ...manifest, "tools/x/test/a.test.ts": passing }, base), ["removed-test"]);
-  assert.deepEqual(checksOf({ ...manifest, "tools/x/test/a.test.ts": passing, "tools/x/test/moved.test.ts": passing }, base), []);
-  assert.deepEqual(checksOf({ ...manifest, "tools/x/test/a.test.ts": passing + passing, "tools/x/test/b.test.ts": passing }, base), []);
+  assert.deepEqual(
+    checksOf({ ...manifest, "tools/x/test/a.test.ts": passing, "tools/x/test/moved.test.ts": passing }, base),
+    [],
+  );
+  assert.deepEqual(
+    checksOf({ ...manifest, "tools/x/test/a.test.ts": passing + passing, "tools/x/test/b.test.ts": passing }, base),
+    [],
+  );
 });
 
 test("アサーションの無いテストを見つける", () => {
   const file = "tools/x/test/a.test.ts";
   assert.deepEqual(checksOf({ [file]: `test("a", () => {\n  run();\n});\n` }), ["hollow-test"]);
   assert.deepEqual(checksOf({ [file]: `test("a", async () => {\n  await assert.rejects(run());\n});\n` }), []);
-  assert.deepEqual(checksOf({ [file]: `const ok = /x/.test(name);\n${passing}` }), [], "正規表現の .test( はテストではない");
+  assert.deepEqual(
+    checksOf({ [file]: `const ok = /x/.test(name);\n${passing}` }),
+    [],
+    "正規表現の .test( はテストではない",
+  );
 });
 
 test("tsconfig の検査を緩める変更を見つける", () => {
   const file = "tools/x/tsconfig.json";
   const strict = `{ "compilerOptions": { "strict": true, "noUncheckedIndexedAccess": true, "erasableSyntaxOnly": true, "verbatimModuleSyntax": true }, "include": ["src", "test"] }`;
   assert.deepEqual(checksOf({ [file]: strict }, { [file]: strict }), []);
-  assert.deepEqual(checksOf({ [file]: strict.replace(`"strict": true`, `"strict": false`) }, { [file]: strict }), ["loosened-tsconfig"]);
-  assert.deepEqual(checksOf({ [file]: strict.replace(`"noUncheckedIndexedAccess": true, `, "") }, { [file]: strict }), ["loosened-tsconfig", "loosened-tsconfig"]);
-  assert.deepEqual(checksOf({ [file]: strict.replace(`["src", "test"]`, `["src"]`) }, { [file]: strict }), ["loosened-tsconfig"]);
-  assert.deepEqual(checksOf({ [file]: strict.replace(`"include"`, `"exclude": ["src/a.ts"], "include"`) }, { [file]: strict }), ["loosened-tsconfig"]);
-  assert.deepEqual(checksOf({ [file]: `// コメントと末尾のカンマは許す\n${strict.replace(` }, "include"`, `, }, "include"`)}` }), []);
+  assert.deepEqual(checksOf({ [file]: strict.replace(`"strict": true`, `"strict": false`) }, { [file]: strict }), [
+    "loosened-tsconfig",
+  ]);
+  assert.deepEqual(checksOf({ [file]: strict.replace(`"noUncheckedIndexedAccess": true, `, "") }, { [file]: strict }), [
+    "loosened-tsconfig",
+    "loosened-tsconfig",
+  ]);
+  assert.deepEqual(checksOf({ [file]: strict.replace(`["src", "test"]`, `["src"]`) }, { [file]: strict }), [
+    "loosened-tsconfig",
+  ]);
+  assert.deepEqual(
+    checksOf({ [file]: strict.replace(`"include"`, `"exclude": ["src/a.ts"], "include"`) }, { [file]: strict }),
+    ["loosened-tsconfig"],
+  );
+  assert.deepEqual(
+    checksOf({ [file]: `// コメントと末尾のカンマは許す\n${strict.replace(` }, "include"`, `, }, "include"`)}` }),
+    [],
+  );
 });
 
 test("検査のスクリプトを無意味にする変更を見つける", () => {
@@ -52,19 +76,31 @@ test("検査のスクリプトを無意味にする変更を見つける", () =>
   assert.deepEqual(checksOf({ [file]: manifest("echo skip") }, base), ["neutered-script", "neutered-script"]);
   assert.deepEqual(checksOf({ [file]: manifest("node --test test/a.test.ts") }, base), ["neutered-script"]);
   assert.deepEqual(checksOf({ [file]: `{"scripts":{"typecheck":"tsc --noEmit"}}` }, base), ["neutered-script"]);
-  assert.deepEqual(checksOf({ "package.json": `{"scripts":{"test":"pnpm --filter @nagaya/x test"}}` }), ["neutered-script"]);
+  assert.deepEqual(checksOf({ "package.json": `{"scripts":{"test":"pnpm --filter @nagaya/x test"}}` }), [
+    "neutered-script",
+  ]);
 });
 
 test("型エラーを黙らせるコメントを見つける", () => {
-  assert.deepEqual(checksOf({ "tools/x/src/a.ts": `// @ts-ignore\nconst a: number = "x";\n` }), ["suppressed-type-error", "unplugged-package"]);
+  assert.deepEqual(checksOf({ "tools/x/src/a.ts": `// @ts-ignore\nconst a: number = "x";\n` }), [
+    "suppressed-type-error",
+    "unplugged-package",
+  ]);
   assert.deepEqual(checksOf({ "spikes/y/a.ts": `const text = "// @ts-ignore";\n` }), [], "文字列の中は見ない");
 });
 
 test("パッケージが検査から外れる変更を見つける", () => {
   const workspace = `packages:\n  - "tools/*"\n  - "spikes/*"\n`;
-  const files = { "pnpm-workspace.yaml": workspace, "tools/x/package.json": `{"scripts":{"typecheck":"tsc --noEmit"}}`, "tools/x/src/a.ts": "export {};\n" };
+  const files = {
+    "pnpm-workspace.yaml": workspace,
+    "tools/x/package.json": `{"scripts":{"typecheck":"tsc --noEmit"}}`,
+    "tools/x/src/a.ts": "export {};\n",
+  };
   assert.deepEqual(checksOf(files, files), []);
-  assert.deepEqual(checksOf({ ...files, "pnpm-workspace.yaml": `packages:\n  - "spikes/*"\n` }, files), ["unplugged-package", "unplugged-package"]);
+  assert.deepEqual(checksOf({ ...files, "pnpm-workspace.yaml": `packages:\n  - "spikes/*"\n` }, files), [
+    "unplugged-package",
+    "unplugged-package",
+  ]);
   assert.deepEqual(checksOf({ ...files, "tools/x/package.json": `{"scripts":{}}` }), ["unplugged-package"]);
   const { "tools/x/package.json": _removed, ...withoutManifest } = files;
   assert.deepEqual(checksOf(withoutManifest), ["unplugged-package"]);

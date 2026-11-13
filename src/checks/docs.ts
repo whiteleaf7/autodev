@@ -8,14 +8,59 @@ const isDoc = (path: string) => path === "CLAUDE.md" || path === "README.md" || 
 
 // スクリプトではなく pnpm 自身のコマンド
 const PNPM_BUILTINS = new Set([
-  "install", "i", "add", "remove", "rm", "uninstall", "update", "up", "upgrade", "dlx", "exec", "store", "why", "list", "ls",
-  "outdated", "audit", "publish", "pack", "init", "create", "link", "unlink", "rebuild", "prune", "fetch", "config", "setup",
-  "env", "patch", "deploy", "import", "approve-builds", "self-update", "dedupe", "root", "bin", "help",
+  "install",
+  "i",
+  "add",
+  "remove",
+  "rm",
+  "uninstall",
+  "update",
+  "up",
+  "upgrade",
+  "dlx",
+  "exec",
+  "store",
+  "why",
+  "list",
+  "ls",
+  "outdated",
+  "audit",
+  "publish",
+  "pack",
+  "init",
+  "create",
+  "link",
+  "unlink",
+  "rebuild",
+  "prune",
+  "fetch",
+  "config",
+  "setup",
+  "env",
+  "patch",
+  "deploy",
+  "import",
+  "approve-builds",
+  "self-update",
+  "dedupe",
+  "root",
+  "bin",
+  "help",
 ]);
-const PNPM_FLAGS = new Set(["-r", "--recursive", "--silent", "-s", "-w", "--workspace-root", "--parallel", "--if-present"]);
+const PNPM_FLAGS = new Set([
+  "-r",
+  "--recursive",
+  "--silent",
+  "-s",
+  "-w",
+  "--workspace-root",
+  "--parallel",
+  "--if-present",
+]);
 const PLACEHOLDER = /[<>*…{}]|\.\.\.|N{3,}/;
 const REPO_PATH = /^(?:\.\/)?((?:docs|tools|dev|spikes|apps|packages|\.claude|\.githooks)\/[\w@.\-/[\]]*)$/;
-const TOOL_NAME = /^(?:mcp__nagaya-dev__)?((?:get|list|create|update|set|open|add|search|delete|remove|record|find)_[a-z_]+)$/;
+const TOOL_NAME =
+  /^(?:mcp__nagaya-dev__)?((?:get|list|create|update|set|open|add|search|delete|remove|record|find)_[a-z_]+)$/;
 
 type Snippet = { text: string; line: number };
 
@@ -68,7 +113,9 @@ function gatherFacts(repo: Repo): Facts {
   return {
     rootScripts,
     packageScripts,
-    decisions: new Set(repo.files.map((f) => /^docs\/decisions\/(\d{4})-/.exec(f)?.[1]).filter((n): n is string => Boolean(n))),
+    decisions: new Set(
+      repo.files.map((f) => /^docs\/decisions\/(\d{4})-/.exec(f)?.[1]).filter((n): n is string => Boolean(n)),
+    ),
     tools: mcp === null ? null : new Set([...mcp.matchAll(/registerTool\(\s*"([^"]+)"/g)].map((m) => m[1]!)),
     exists: (path) => {
       const trimmed = path.replace(/\/$/, "");
@@ -79,7 +126,9 @@ function gatherFacts(repo: Repo): Facts {
         if (!path.startsWith(dir)) return false;
         const inner = path.slice(dir.length).replace(/\/$/, "");
         // スラッシュを含まない行は、どの深さにあっても効く
-        return entry.includes("/") ? inner === entry || inner.startsWith(`${entry}/`) : inner.split("/").includes(entry);
+        return entry.includes("/")
+          ? inner === entry || inner.startsWith(`${entry}/`)
+          : inner.split("/").includes(entry);
       }),
   };
 }
@@ -102,7 +151,8 @@ function missingScript(command: string, facts: Facts): string | null {
   }
   const script = tokens[i] === "run" ? tokens[i + 1] : tokens[i];
   if (!script || !/^[a-z][\w:.-]*$/i.test(script) || (tokens[i] !== "run" && PNPM_BUILTINS.has(script))) return null;
-  if (filter === null) return facts.rootScripts.has(script) ? null : `ルートの package.json に ${script} というスクリプトが無い`;
+  if (filter === null)
+    return facts.rootScripts.has(script) ? null : `ルートの package.json に ${script} というスクリプトが無い`;
   if (PLACEHOLDER.test(filter)) return null;
   const own = facts.packageScripts.get(filter);
   if (!own) return `${filter} というパッケージが無い`;
@@ -129,7 +179,8 @@ function checkDoc(file: string, text: string, facts: Facts): Problem[] {
       if (facts.exists(path.split("/")[0]!) && !facts.exists(path)) add("missing-path", line, `${path} が存在しない`);
     }
     const tool = TOOL_NAME.exec(snippet.trim())?.[1];
-    if (tool && facts.tools && !facts.tools.has(tool)) add("missing-mcp-tool", line, `MCP ツール ${tool} は nagaya-dev に登録されていない`);
+    if (tool && facts.tools && !facts.tools.has(tool))
+      add("missing-mcp-tool", line, `MCP ツール ${tool} は nagaya-dev に登録されていない`);
   }
 
   text.split("\n").forEach((content, i) => {
@@ -137,9 +188,13 @@ function checkDoc(file: string, text: string, facts: Facts): Problem[] {
       const target = m[1]!.replace(/#.*$/, "");
       if (!target || /^([a-z][a-z0-9+.-]*:|\/)/i.test(target)) continue;
       const path = posix.normalize(posix.join(posix.dirname(file), target));
-      if (!path.startsWith("..") && !facts.ignored(path) && !facts.exists(path)) add("missing-path", i + 1, `リンク先の ${path} が存在しない`);
+      if (!path.startsWith("..") && !facts.ignored(path) && !facts.exists(path))
+        add("missing-path", i + 1, `リンク先の ${path} が存在しない`);
     }
-    const numbers = [...content.matchAll(/決定記録[^\d\n]{0,6}(\d{4})/g), ...content.matchAll(/[（(](0\d{3})[）)]/g)].map((m) => m[1]!);
+    const numbers = [
+      ...content.matchAll(/決定記録[^\d\n]{0,6}(\d{4})/g),
+      ...content.matchAll(/[（(](0\d{3})[）)]/g),
+    ].map((m) => m[1]!);
     for (const number of new Set(numbers)) {
       if (!facts.decisions.has(number)) add("missing-decision", i + 1, `決定記録 ${number} が存在しない`);
     }
@@ -154,7 +209,11 @@ function checkConfig(repo: Repo, facts: Facts): Problem[] {
   for (const [name, server] of Object.entries(typeof servers === "object" && servers !== null ? servers : {})) {
     const args: unknown = typeof server === "object" && server !== null ? (server as Record<string, unknown>).args : [];
     for (const arg of Array.isArray(args) ? args : []) {
-      if (typeof arg === "string" && /^[^-].*\.(ts|js|mjs|cjs|json)$/.test(arg) && !facts.exists(posix.normalize(arg))) {
+      if (
+        typeof arg === "string" &&
+        /^[^-].*\.(ts|js|mjs|cjs|json)$/.test(arg) &&
+        !facts.exists(posix.normalize(arg))
+      ) {
         problems.push({ check: "broken-config", file: ".mcp.json", message: `${name} が指す ${arg} が存在しない` });
       }
     }
@@ -164,13 +223,25 @@ function checkConfig(repo: Repo, facts: Facts): Problem[] {
   const settings = parseJson(settingsText);
   if (settingsText !== null && facts.tools) {
     for (const m of settingsText.matchAll(/mcp__nagaya-dev__([\w-]+)/g)) {
-      if (!facts.tools.has(m[1]!)) problems.push({ check: "missing-mcp-tool", file: ".claude/settings.json", message: `MCP ツール ${m[1]} は nagaya-dev に登録されていない` });
+      if (!facts.tools.has(m[1]!))
+        problems.push({
+          check: "missing-mcp-tool",
+          file: ".claude/settings.json",
+          message: `MCP ツール ${m[1]} は nagaya-dev に登録されていない`,
+        });
     }
   }
-  const enabled: unknown = typeof settings === "object" && settings !== null ? (settings as Record<string, unknown>).enabledMcpjsonServers : [];
+  const enabled: unknown =
+    typeof settings === "object" && settings !== null
+      ? (settings as Record<string, unknown>).enabledMcpjsonServers
+      : [];
   for (const name of Array.isArray(enabled) ? enabled : []) {
     if (typeof name === "string" && typeof servers === "object" && servers !== null && !(name in servers)) {
-      problems.push({ check: "broken-config", file: ".claude/settings.json", message: `有効にしている MCP サーバ ${name} が .mcp.json に無い` });
+      problems.push({
+        check: "broken-config",
+        file: ".claude/settings.json",
+        message: `有効にしている MCP サーバ ${name} が .mcp.json に無い`,
+      });
     }
   }
   return problems;
@@ -178,5 +249,8 @@ function checkConfig(repo: Repo, facts: Facts): Problem[] {
 
 export function checkDocs(repo: Repo): Problem[] {
   const facts = gatherFacts(repo);
-  return [...repo.files.filter(isDoc).flatMap((file) => checkDoc(file, repo.read(file) ?? "", facts)), ...checkConfig(repo, facts)];
+  return [
+    ...repo.files.filter(isDoc).flatMap((file) => checkDoc(file, repo.read(file) ?? "", facts)),
+    ...checkConfig(repo, facts),
+  ];
 }

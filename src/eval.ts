@@ -52,7 +52,8 @@ async function judge(scenario: Scenario, template: string, gate: string, boardSn
         ? await commit(dir, scenario.commit, env)
         : await run("sh", ["-c", gate], dir, env);
     const stopped = code !== 0;
-    const outcome: Outcome = scenario.kind === "bad" ? (stopped ? "caught" : "missed") : stopped ? "false-alarm" : "passed";
+    const outcome: Outcome =
+      scenario.kind === "bad" ? (stopped ? "caught" : "missed") : stopped ? "false-alarm" : "passed";
     return { scenario, outcome, detail: stopped ? lastLines(output) : "" };
   } finally {
     removeDir(dir);
@@ -129,10 +130,15 @@ try {
     process.exitCode = validate(scenarios, template) ? 1 : 0;
   } else {
     const gate = gateCommand();
-    const results = await pool(scenarios, Math.max(2, Math.floor(availableParallelism() / 2)), (s) => judge(s, template, gate, boardSnapshot));
+    const results = await pool(scenarios, Math.max(2, Math.floor(availableParallelism() / 2)), (s) =>
+      judge(s, template, gate, boardSnapshot),
+    );
     const summary = summarize(results);
     if (values.set === "public") {
-      for (const r of results) console.log(`[${r.outcome}] ${r.scenario.id} ${r.scenario.class}: ${r.scenario.title}${r.detail ? `\n    ${r.detail}` : ""}`);
+      for (const r of results)
+        console.log(
+          `[${r.outcome}] ${r.scenario.id} ${r.scenario.class}: ${r.scenario.title}${r.detail ? `\n    ${r.detail}` : ""}`,
+        );
     }
     console.log(`\n${values.set}（ゲート: ${gate}）`);
     console.log(formatSummary(summary));

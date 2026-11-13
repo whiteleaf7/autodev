@@ -7,5 +7,10 @@ import type { Problem, Repo } from "../repo.ts";
 const isDecisionFile = (path: string) => /^docs\/decisions\/[^/]+\.md$/.test(path);
 
 export function checkRecords(repo: Repo): Problem[] {
-  return lintDecisions(repo.files.filter(isDecisionFile).sort().map((file) => ({ file, text: repo.read(file) ?? "" })));
+  return lintDecisions(
+    repo.files
+      .filter(isDecisionFile)
+      .sort()
+      .map((file) => ({ file, text: repo.read(file) ?? "" })),
+  );
 }

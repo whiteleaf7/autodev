@@ -7,10 +7,24 @@ const checksOf = (files: Record<string, string>) => checkConventions(memoryRepo(
 const inSource = (code: string) => checksOf({ "tools/x/src/a.ts": code });
 
 test("型としての any を見つけ、同じ綴りの別のものは通す", () => {
-  for (const code of ["let a: any = 1;", "const a = b as any;", "const a: any[] = [];", "type A = Record<string, any>;", "function f(a: any): void {}", "const a = <any>b;"]) {
+  for (const code of [
+    "let a: any = 1;",
+    "const a = b as any;",
+    "const a: any[] = [];",
+    "type A = Record<string, any>;",
+    "function f(a: any): void {}",
+    "const a = <any>b;",
+  ]) {
     assert.deepEqual(inSource(code), ["explicit-any"], code);
   }
-  for (const code of ["// any は使わない", 'const a = "any";', "const a = { any: 1 };", "const a = z.any();", "const anyOf = 1;", "const a = /any/;"]) {
+  for (const code of [
+    "// any は使わない",
+    'const a = "any";',
+    "const a = { any: 1 };",
+    "const a = z.any();",
+    "const anyOf = 1;",
+    "const a = /any/;",
+  ]) {
     assert.deepEqual(inSource(code), [], code);
   }
   assert.deepEqual(checksOf({ "tools/x/public/a.js": "/** @type {any} */\nconst a = 1;\n" }), ["explicit-any"]);
@@ -39,9 +53,13 @@ test("理由の無い空の catch を見つける", () => {
 
 test("pnpm 以外のパッケージマネージャの実行を見つける", () => {
   const other = ["n", "px"].join("");
-  assert.deepEqual(checksOf({ "tools/x/package.json": `{"scripts":{"lint":"${other} eslint ."}}` }), ["package-manager"]);
+  assert.deepEqual(checksOf({ "tools/x/package.json": `{"scripts":{"lint":"${other} eslint ."}}` }), [
+    "package-manager",
+  ]);
   assert.deepEqual(checksOf({ "tools/x/package.json": `{"scripts":{"lint":"pnpm exec eslint ."}}` }), []);
-  assert.deepEqual(checksOf({ "docs/a.md": `手順:\n\n\`\`\`sh\n${other} tsc --noEmit\n\`\`\`\n` }), ["package-manager"]);
+  assert.deepEqual(checksOf({ "docs/a.md": `手順:\n\n\`\`\`sh\n${other} tsc --noEmit\n\`\`\`\n` }), [
+    "package-manager",
+  ]);
   assert.deepEqual(checksOf({ "docs/a.md": `\`${other} tsc\` を実行する\n` }), ["package-manager"]);
   assert.deepEqual(checksOf({ "docs/a.md": `${other} は使わない。pnpm を使う\n` }), [], "地の文での言及は構わない");
   assert.deepEqual(checksOf({ "tools/x/src/a.ts": `execFileSync("${other}", ["tsc"]);` }), ["package-manager"]);
@@ -55,7 +73,10 @@ test("import の循環を見つける", () => {
       "tools/x/src/c.ts": 'export { a } from "./a.ts";\nexport type C = number;\n',
     }),
   );
-  assert.deepEqual(cyclic.map((p) => p.check), ["circular-import"]);
+  assert.deepEqual(
+    cyclic.map((p) => p.check),
+    ["circular-import"],
+  );
   assert.match(cyclic[0]!.message, /a\.ts → .*b\.ts → .*c\.ts → .*a\.ts/);
   assert.deepEqual(
     checksOf({

@@ -32,10 +32,14 @@ export const Scenario = z
   .superRefine((s, ctx) => {
     const isQuery = s.kind === "query";
     if (isQuery !== (s.family === "recall")) ctx.addIssue({ code: "custom", message: "query は recall だけに使う" });
-    if (isQuery && !(s.query && s.expect)) ctx.addIssue({ code: "custom", message: "query には query と expect が要る" });
-    if ((s.family === "commits") !== Boolean(s.commit)) ctx.addIssue({ code: "custom", message: "commit は commits だけに書く" });
-    if (s.board.length && s.family !== "records") ctx.addIssue({ code: "custom", message: "board は records だけに書く" });
-    if (!isQuery && s.edits.length === 0 && s.board.length === 0) ctx.addIssue({ code: "custom", message: "edits も board も空" });
+    if (isQuery && !(s.query && s.expect))
+      ctx.addIssue({ code: "custom", message: "query には query と expect が要る" });
+    if ((s.family === "commits") !== Boolean(s.commit))
+      ctx.addIssue({ code: "custom", message: "commit は commits だけに書く" });
+    if (s.board.length && s.family !== "records")
+      ctx.addIssue({ code: "custom", message: "board は records だけに書く" });
+    if (!isQuery && s.edits.length === 0 && s.board.length === 0)
+      ctx.addIssue({ code: "custom", message: "edits も board も空" });
   });
 export type Scenario = z.infer<typeof Scenario>;
 

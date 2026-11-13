@@ -17,7 +17,9 @@ const doctor = spawnSync("roborev", ["doctor", "--json"], {
 // roborev が入っていない環境では、知らせることが無い
 if (doctor.error && "code" in doctor.error && doctor.error.code === "ENOENT") process.exit(0);
 
-const notices = doctor.error ? [`roborev doctor を実行できなかった: ${doctor.error.message}`] : roborevNotices(doctor.stdout);
+const notices = doctor.error
+  ? [`roborev doctor を実行できなかった: ${doctor.error.message}`]
+  : roborevNotices(doctor.stdout);
 if (notices.length) {
   console.log("roborev の注意（直してから、または直すタスクを登録してから、依頼の作業に入る）:");
   for (const notice of notices) console.log(`- ${notice}`);

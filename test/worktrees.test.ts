@@ -44,7 +44,10 @@ test("取り込み済みで変更の無い worktree だけを片付ける", () =
     dirty: new Set(["/wt/dirty"]),
     current: "/wt/here",
   });
-  assert.deepEqual(plan.remove.map((w) => w.path), ["/wt/done"]);
+  assert.deepEqual(
+    plan.remove.map((w) => w.path),
+    ["/wt/done"],
+  );
   assert.deepEqual(
     plan.keep.map((k) => [k.worktree.path, k.reason]),
     [

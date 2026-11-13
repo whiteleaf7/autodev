@@ -9,7 +9,8 @@ export function parseWorktrees(porcelain: string): Worktree[] {
     .filter((block) => block.trim())
     .map((block) => {
       const lines = block.trim().split("\n");
-      const value = (key: string) => lines.find((line) => line === key || line.startsWith(`${key} `))?.slice(key.length + 1);
+      const value = (key: string) =>
+        lines.find((line) => line === key || line.startsWith(`${key} `))?.slice(key.length + 1);
       const branch = value("branch");
       return {
         path: value("worktree") ?? "",
@@ -34,13 +35,19 @@ export function planPrune(worktrees: Worktree[], facts: PruneFacts): PrunePlan {
   const plan: PrunePlan = { remove: [], keep: [] };
   worktrees.forEach((worktree, i) => {
     const reason =
-      i === 0 ? "main の worktree"
-      : worktree.path === facts.current ? "いま使っている"
-      : worktree.locked ? "ロックされている（使っているセッションがある）"
-      : !worktree.branch ? "ブランチを開いていない（detached HEAD）"
-      : !facts.merged.has(worktree.branch) ? "main に取り込まれていない"
-      : facts.dirty.has(worktree.path) ? "コミットしていない変更がある"
-      : null;
+      i === 0
+        ? "main の worktree"
+        : worktree.path === facts.current
+          ? "いま使っている"
+          : worktree.locked
+            ? "ロックされている（使っているセッションがある）"
+            : !worktree.branch
+              ? "ブランチを開いていない（detached HEAD）"
+              : !facts.merged.has(worktree.branch)
+                ? "main に取り込まれていない"
+                : facts.dirty.has(worktree.path)
+                  ? "コミットしていない変更がある"
+                  : null;
     if (reason) plan.keep.push({ worktree, reason });
     else plan.remove.push(worktree);
   });

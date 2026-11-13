@@ -33,7 +33,10 @@ function explicitAny(repo: Repo): Problem[] {
 // 引数に出てくる定数（const HOST = "127.0.0.1" など）の値も、引数の一部として読む
 function withConstants(args: string, argsCode: string, fileText: string): string {
   const values = [...new Set(argsCode.match(/[A-Za-z_$][\w$]*/g) ?? [])].map(
-    (name) => new RegExp(`\\bconst\\s+${name.replace(/\$/g, "\\$")}\\s*(?::[^=]+)?=\\s*(["'\`][^"'\`]*["'\`])`).exec(fileText)?.[1] ?? "",
+    (name) =>
+      new RegExp(`\\bconst\\s+${name.replace(/\$/g, "\\$")}\\s*(?::[^=]+)?=\\s*(["'\`][^"'\`]*["'\`])`).exec(
+        fileText,
+      )?.[1] ?? "",
   );
   return [args, ...values].join(" ");
 }
@@ -47,7 +50,14 @@ function nonLoopbackListen(repo: Repo): Problem[] {
       if (close < 0) return [];
       const args = withConstants(withStrings.slice(open + 1, close), code.slice(open + 1, close), withStrings);
       if (!ANY_INTERFACE.test(args) && (LOOPBACK.test(args) || UNIX_SOCKET.test(args))) return [];
-      return [{ check: "non-loopback-listen", file, line: lineOf(code, m.index), message: "サーバの待ち受けは 127.0.0.1 だけにする（ホストを省くと、すべてのインターフェースで待ち受ける）" }];
+      return [
+        {
+          check: "non-loopback-listen",
+          file,
+          line: lineOf(code, m.index),
+          message: "サーバの待ち受けは 127.0.0.1 だけにする（ホストを省くと、すべてのインターフェースで待ち受ける）",
+        },
+      ];
     });
   });
 }
@@ -55,21 +65,25 @@ function nonLoopbackListen(repo: Repo): Problem[] {
 function emptyCatch(repo: Repo): Problem[] {
   return repo.files.filter(isProductCode).flatMap((file) => {
     const { code, comments } = scan(repo.read(file) ?? "");
-    return [...code.matchAll(EMPTY_CATCH), ...code.matchAll(EMPTY_PROMISE_CATCH)]
-      // 無視してよい理由をコメントで書いてあるものは、意図した判断として通す
-      .filter((m) => !comments.slice(m.index, m.index + m[0].length).trim())
-      .map((m) => ({
-        check: "empty-catch",
-        file,
-        line: lineOf(code, m.index),
-        message: "catch の中が空で、エラーを握りつぶしている。利用者が直せる言葉で返すか、投げ直す。無視してよいなら、理由をコメントに書く",
-      }));
+    return (
+      [...code.matchAll(EMPTY_CATCH), ...code.matchAll(EMPTY_PROMISE_CATCH)]
+        // 無視してよい理由をコメントで書いてあるものは、意図した判断として通す
+        .filter((m) => !comments.slice(m.index, m.index + m[0].length).trim())
+        .map((m) => ({
+          check: "empty-catch",
+          file,
+          line: lineOf(code, m.index),
+          message:
+            "catch の中が空で、エラーを握りつぶしている。利用者が直せる言葉で返すか、投げ直す。無視してよいなら、理由をコメントに書く",
+        }))
+    );
   });
 }
 
 function packageManager(repo: Repo): Problem[] {
   const problems: Problem[] = [];
-  const add = (file: string, message: string, line?: number) => problems.push({ check: "package-manager", file, message, ...(line ? { line } : {}) });
+  const add = (file: string, message: string, line?: number) =>
+    problems.push({ check: "package-manager", file, message, ...(line ? { line } : {}) });
   const advice = "パッケージマネージャは pnpm だけを使う（npm / npx の代わりに pnpm exec、pnpm dlx）";
 
   for (const dir of packageDirs(repo)) {
@@ -86,7 +100,8 @@ function packageManager(repo: Repo): Problem[] {
     let fenced = false;
     (repo.read(file) ?? "").split("\n").forEach((text, i) => {
       if (/^\s*(```|~~~)/.test(text)) fenced = !fenced;
-      else if (fenced ? /^\s*([$>]\s+)?(sudo\s+)?(npm|npx)\s/.test(text) : /`(npm|npx)\s[^`]+`/.test(text)) add(file, advice, i + 1);
+      else if (fenced ? /^\s*([$>]\s+)?(sudo\s+)?(npm|npx)\s/.test(text) : /`(npm|npx)\s[^`]+`/.test(text))
+        add(file, advice, i + 1);
     });
   }
 
@@ -127,7 +142,11 @@ function circularImports(repo: Repo): Problem[] {
       const key = [...cycle].sort().join("|");
       if (!reported.has(key)) {
         reported.add(key);
-        problems.push({ check: "circular-import", file: cycle[0]!, message: `import が循環している: ${[...cycle, file].join(" → ")}` });
+        problems.push({
+          check: "circular-import",
+          file: cycle[0]!,
+          message: `import が循環している: ${[...cycle, file].join(" → ")}`,
+        });
       }
       return;
     }
@@ -140,5 +159,11 @@ function circularImports(repo: Repo): Problem[] {
 }
 
 export function checkConventions(repo: Repo): Problem[] {
-  return [...explicitAny(repo), ...nonLoopbackListen(repo), ...emptyCatch(repo), ...packageManager(repo), ...circularImports(repo)];
+  return [
+    ...explicitAny(repo),
+    ...nonLoopbackListen(repo),
+    ...emptyCatch(repo),
+    ...packageManager(repo),
+    ...circularImports(repo),
+  ];
 }

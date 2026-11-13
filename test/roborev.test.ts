@@ -10,11 +10,16 @@ test("roborev doctor に問題が無ければ、何も知らせない", () => {
 });
 
 test("承知のうえで残している警告は知らせない", () => {
-  assert.deepEqual(roborevNotices(report(ok, { id: "repo.guidelines", status: "warn", summary: "no review guidelines" })), []);
+  assert.deepEqual(
+    roborevNotices(report(ok, { id: "repo.guidelines", status: "warn", summary: "no review guidelines" })),
+    [],
+  );
 });
 
 test("フックが古くなったら、roborev init を使わずに直す手順へ案内する", () => {
-  const notices = roborevNotices(report(ok, { id: "repo.hooks", status: "warn", summary: "git hooks need attention", fix: "roborev init" }));
+  const notices = roborevNotices(
+    report(ok, { id: "repo.hooks", status: "warn", summary: "git hooks need attention", fix: "roborev init" }),
+  );
   assert.equal(notices.length, 1);
   assert.match(notices[0]!, /repo\.hooks/);
   assert.match(notices[0]!, /docs\/harness\.md/);
