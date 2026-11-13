@@ -128,9 +128,13 @@ export async function screenshot(options: ScreenshotOptions): Promise<{ out: str
       });
       await page("Page.navigate", { url: options.url });
       await waitUntil(async () => (await evaluate("document.readyState")) === "complete", options.timeoutMs, "読み込みが終わらない");
-      if (options.waitFor) {
-        const selector = JSON.stringify(options.waitFor);
-        await waitUntil(async () => (await evaluate(`!!document.querySelector(${selector})`)) === true, options.timeoutMs, `${options.waitFor} が出ない`);
+      const appears = (selector: string) =>
+        waitUntil(async () => (await evaluate(`!!document.querySelector(${JSON.stringify(selector)})`)) === true, options.timeoutMs, `${selector} が出ない`);
+      if (options.waitFor) await appears(options.waitFor);
+      for (const selector of options.click) {
+        await appears(selector);
+        await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+        await sleep(200);
       }
       // 描画が落ち着くのを待つ
       await sleep(200);

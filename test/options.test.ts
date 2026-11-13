@@ -7,14 +7,16 @@ test("省略した引数は既定値になり、渡した値は数として読�
     url: "http://127.0.0.1:4848/",
     out: "out.png",
     waitFor: undefined,
+    click: [],
     width: 1280,
     height: 800,
     timeoutMs: 15_000,
   });
-  assert.deepEqual(parseScreenshotArgs(["https://example.com/a", "dir/shot.png", "--width", "320", "--height", "200", "--timeout", "500", "--wait-for", "#ready"]), {
+  assert.deepEqual(parseScreenshotArgs(["https://example.com/a", "dir/shot.png", "--width", "320", "--height", "200", "--timeout", "500", "--wait-for", "#ready", "--click", ".card", "--click", "#edit"]), {
     url: "https://example.com/a",
     out: "dir/shot.png",
     waitFor: "#ready",
+    click: [".card", "#edit"],
     width: 320,
     height: 200,
     timeoutMs: 500,

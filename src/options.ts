@@ -5,6 +5,8 @@ const ScreenshotOptions = z.object({
   url: z.url(),
   out: z.string().endsWith(".png", "出力先は .png にする"),
   waitFor: z.string().min(1).optional(),
+  // 撮る前に、この順にクリックする要素（モーダルを開くなど）
+  click: z.array(z.string().min(1)).default([]),
   width: z.coerce.number().int().positive().default(1280),
   height: z.coerce.number().int().positive().default(800),
   timeoutMs: z.coerce.number().int().positive().default(15_000),
@@ -12,7 +14,7 @@ const ScreenshotOptions = z.object({
 export type ScreenshotOptions = z.infer<typeof ScreenshotOptions>;
 
 export const usage =
-  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--width 1280] [--height 800] [--timeout 15000]";
+  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--click <CSS セレクタ>]... [--width 1280] [--height 800] [--timeout 15000]";
 
 export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
   const { positionals, values } = parseArgs({
@@ -20,6 +22,7 @@ export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
     allowPositionals: true,
     options: {
       "wait-for": { type: "string" },
+      click: { type: "string", multiple: true },
       width: { type: "string" },
       height: { type: "string" },
       timeout: { type: "string" },
@@ -29,6 +32,7 @@ export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
     url: positionals[0],
     out: positionals[1],
     waitFor: values["wait-for"],
+    click: values.click,
     width: values.width,
     height: values.height,
     timeoutMs: values.timeout,
