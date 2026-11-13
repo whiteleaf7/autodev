@@ -196,7 +196,8 @@ function scripts(repo: Repo): Problem[] {
   return problems;
 }
 
-type LintConfig = { levels: Map<string, number>; ignores: string[]; typeAware: boolean };
+type LintLevel = { scope: string; name: string; level: number };
+type LintConfig = { levels: LintLevel[]; ignores: string[]; typeAware: boolean };
 
 const severityOf = (value: unknown): number => {
   const level = Array.isArray(value) ? value[0] : value;
@@ -206,23 +207,28 @@ const severityOf = (value: unknown): number => {
 const objectOf = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
-// カテゴリ・ルール・overrides のルールを、「どこの何か」をキーにした重さに広げる
+// カテゴリ・ルール・overrides のルールを、「どこの何か」ごとの重さに広げる
 function parseLintConfig(text: string | null): LintConfig | null {
   const json = parseJsonc(text);
   if (typeof json !== "object" || json === null) return null;
   const { categories, rules, overrides, ignorePatterns, options } = json as Record<string, unknown>;
-  const levels = new Map<string, number>();
-  for (const [name, level] of Object.entries(objectOf(categories))) levels.set(`カテゴリ ${name}`, severityOf(level));
-  for (const [name, level] of Object.entries(objectOf(rules))) levels.set(`ルール ${name}`, severityOf(level));
+  const levels: LintLevel[] = [];
+  for (const [name, level] of Object.entries(objectOf(categories)))
+    levels.push({ scope: "categories", name, level: severityOf(level) });
+  for (const [name, level] of Object.entries(objectOf(rules)))
+    levels.push({ scope: "rules", name, level: severityOf(level) });
   for (const override of Array.isArray(overrides) ? overrides : []) {
     const { files, rules: overrideRules } = objectOf(override);
-    const where = Array.isArray(files) ? files.join(", ") : "?";
+    const scope = Array.isArray(files) ? files.join(", ") : "?";
     for (const [name, level] of Object.entries(objectOf(overrideRules)))
-      levels.set(`${where} のルール ${name}`, severityOf(level));
+      levels.push({ scope, name, level: severityOf(level) });
   }
   const ignores = Array.isArray(ignorePatterns) ? ignorePatterns.filter((p): p is string => typeof p === "string") : [];
   return { levels, ignores, typeAware: objectOf(options).typeAware === true };
 }
+
+const labelOf = ({ scope, name }: LintLevel) =>
+  scope === "categories" ? `カテゴリ ${name}` : scope === "rules" ? `ルール ${name}` : `${scope} のルール ${name}`;
 
 function lintConfig(repo: Repo): Problem[] {
   const before = parseLintConfig(repo.base?.read(LINT_CONFIG) ?? null);
@@ -234,9 +240,17 @@ function lintConfig(repo: Repo): Problem[] {
     add("lint の設定が消えたか、読めない");
     return problems;
   }
-  for (const [key, level] of before.levels)
-    if ((now.levels.get(key) ?? 0) < level) add(`${key} を緩めている・外している`);
-  for (const [key, level] of now.levels) if (!before.levels.has(key) && level === 0) add(`${key} を切っている`);
+  const levelIn = (levels: LintLevel[], scope: string, name: string) =>
+    levels.find((l) => l.scope === scope && l.name === name)?.level;
+  for (const entry of before.levels)
+    if ((levelIn(now.levels, entry.scope, entry.name) ?? 0) < entry.level)
+      add(`${labelOf(entry)} を緩めている・外している`);
+  // overrides で新しく切るのは、基点で全体に有効だったルールだけを問題にする（同じ変更で足したルールを、一部で切るのは構わない）
+  for (const entry of now.levels) {
+    if (entry.level > 0 || levelIn(before.levels, entry.scope, entry.name) !== undefined) continue;
+    const isOverride = entry.scope !== "categories" && entry.scope !== "rules";
+    if (!isOverride || (levelIn(before.levels, "rules", entry.name) ?? 0) > 0) add(`${labelOf(entry)} を切っている`);
+  }
   for (const pattern of now.ignores)
     if (!before.ignores.includes(pattern)) add(`${pattern} を lint の対象から外している（ignorePatterns）`);
   if (before.typeAware && !now.typeAware) add("型情報を使うルール（typeAware）を止めている");

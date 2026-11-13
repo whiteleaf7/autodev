@@ -1,31 +1,26 @@
-// CLAUDE.md の「コードの書き方」「作業ルール」のうち、型チェックでは拾えないものを検査する。
-// 型の除去だけで消えない構文と、import の拡張子は、tsc（erasableSyntaxOnly、nodenext）が見ている。
+// CLAUDE.md の「コードの書き方」「作業ルール」のうち、型チェックと lint では拾えないものを検査する。
+// 型の除去だけで消えない構文と、import の拡張子は tsc（erasableSyntaxOnly、nodenext）が、
+// any・空の catch・import の循環は oxlint（.oxlintrc.json）が見ている（決定記録 0013）。
 
-import { posix } from "node:path";
 import { isProductCode, isTestFile, packageDirs, parseJson, type Problem, type Repo } from "../repo.ts";
 import { lineOf, matchingClose, scan } from "../source.ts";
 
-// オブジェクトのキー（any:）と関数呼び出し（any(）は型ではないので除く
-const ANY_TYPE = /(?<![\w$.])any(?![\w$])(?!\s*[:(])/g;
+// oxlint は JSDoc の型を読まないので、checkJs の JS に書いた any はここで見る
 const ANY_IN_JSDOC = /@(type|param|returns?|typedef)\s*\{[^}]*\bany\b/g;
 const SERVER_START = /(\.listen|\bBun\.serve|\bDeno\.serve|\bWebSocketServer)\s*\(/g;
 const LOOPBACK = /["'`](127\.0\.0\.1|localhost|::1|\[::1\])["'`]/;
 const ANY_INTERFACE = /["'`](0\.0\.0\.0|::|\[::\])["'`]/;
 const UNIX_SOCKET = /\bpath\s*:|\.sock\b/;
-const EMPTY_CATCH = /\bcatch\s*(\([^)]*\))?\s*\{\s*\}/g;
-const EMPTY_PROMISE_CATCH = /\.catch\s*\(\s*(?:\(\s*[\w$]*\s*\)|[\w$]+)?\s*=>\s*\{\s*\}\s*\)/g;
 const OTHER_PACKAGE_MANAGER = /(^|[^\w-])(npm|npx)(?![\w-])/;
-const STATIC_IMPORT = /(?:^|[\s;])(?:import|export)\s(?:[^;'"`]*?\sfrom\s*)?["']([^"']+)["']/g;
 
-function explicitAny(repo: Repo): Problem[] {
+function anyInJsDoc(repo: Repo): Problem[] {
   return repo.files.filter(isProductCode).flatMap((file) => {
-    const { code, comments } = scan(repo.read(file) ?? "");
-    const typed = /\.(ts|tsx|mts|cts)$/.test(file) ? [...code.matchAll(ANY_TYPE)] : [];
-    return [...typed, ...comments.matchAll(ANY_IN_JSDOC)].map((m) => ({
+    const { comments } = scan(repo.read(file) ?? "");
+    return [...comments.matchAll(ANY_IN_JSDOC)].map((m) => ({
       check: "explicit-any",
       file,
-      line: lineOf(code, m.index),
-      message: "型に any を使っている。unknown にして絞り込むか、zod のスキーマから型を得る",
+      line: lineOf(comments, m.index),
+      message: "JSDoc の型に any を使っている。具体的な型か unknown にする",
     }));
   });
 }
@@ -59,24 +54,6 @@ function nonLoopbackListen(repo: Repo): Problem[] {
         },
       ];
     });
-  });
-}
-
-function emptyCatch(repo: Repo): Problem[] {
-  return repo.files.filter(isProductCode).flatMap((file) => {
-    const { code, comments } = scan(repo.read(file) ?? "");
-    return (
-      [...code.matchAll(EMPTY_CATCH), ...code.matchAll(EMPTY_PROMISE_CATCH)]
-        // 無視してよい理由をコメントで書いてあるものは、意図した判断として通す
-        .filter((m) => !comments.slice(m.index, m.index + m[0].length).trim())
-        .map((m) => ({
-          check: "empty-catch",
-          file,
-          line: lineOf(code, m.index),
-          message:
-            "catch の中が空で、エラーを握りつぶしている。利用者が直せる言葉で返すか、投げ直す。無視してよいなら、理由をコメントに書く",
-        }))
-    );
   });
 }
 
@@ -118,52 +95,6 @@ function packageManager(repo: Repo): Problem[] {
   return problems;
 }
 
-function circularImports(repo: Repo): Problem[] {
-  const files = new Set(repo.files.filter(isProductCode));
-  const graph = new Map<string, string[]>();
-  for (const file of files) {
-    const { withStrings } = scan(repo.read(file) ?? "");
-    const targets = [...withStrings.matchAll(STATIC_IMPORT)]
-      .map((m) => m[1]!)
-      .filter((spec) => spec.startsWith("."))
-      .map((spec) => posix.normalize(posix.join(posix.dirname(file), spec)))
-      .map((path) => [path, `${path}.ts`, `${path}.js`, `${path}/index.ts`].find((candidate) => files.has(candidate)))
-      .filter((target): target is string => target !== undefined);
-    graph.set(file, targets);
-  }
-
-  const problems: Problem[] = [];
-  const reported = new Set<string>();
-  const done = new Set<string>();
-  const visit = (file: string, path: string[]): void => {
-    const at = path.indexOf(file);
-    if (at >= 0) {
-      const cycle = path.slice(at);
-      const key = [...cycle].sort().join("|");
-      if (!reported.has(key)) {
-        reported.add(key);
-        problems.push({
-          check: "circular-import",
-          file: cycle[0]!,
-          message: `import が循環している: ${[...cycle, file].join(" → ")}`,
-        });
-      }
-      return;
-    }
-    if (done.has(file)) return;
-    for (const target of graph.get(file) ?? []) visit(target, [...path, file]);
-    done.add(file);
-  };
-  for (const file of [...files].sort()) visit(file, []);
-  return problems;
-}
-
 export function checkConventions(repo: Repo): Problem[] {
-  return [
-    ...explicitAny(repo),
-    ...nonLoopbackListen(repo),
-    ...emptyCatch(repo),
-    ...packageManager(repo),
-    ...circularImports(repo),
-  ];
+  return [...anyInJsDoc(repo), ...nonLoopbackListen(repo), ...packageManager(repo)];
 }
