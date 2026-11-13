@@ -1,0 +1,8 @@
+#!/bin/sh
+# コミットのあと、roborev が入っていればレビューを積む。ゲートではないので、失敗してもコミットは止めない（決定記録 0012）。
+# ハーネスの評価は複製したリポジトリでコミットするので、NAGAYA_SKIP_REVIEW を付けてレビューを積まない。
+[ -n "$NAGAYA_SKIP_REVIEW" ] && exit 0
+command -v roborev >/dev/null 2>&1 || exit 0
+# フックから起動されたデーモンにも届くように、ここでも匿名の利用統計を切る
+export ROBOREV_TELEMETRY_ENABLED=0
+roborev post-commit || true

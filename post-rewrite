@@ -1,0 +1,6 @@
+#!/bin/sh
+# rebase や amend でコミットが書き換わったら、roborev のレビューを新しいコミットに付け替える（決定記録 0012）
+[ -n "$NAGAYA_SKIP_REVIEW" ] && exit 0
+command -v roborev >/dev/null 2>&1 || exit 0
+export ROBOREV_TELEMETRY_ENABLED=0
+roborev remap --quiet 2>/dev/null || true
