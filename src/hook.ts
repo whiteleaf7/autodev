@@ -1,12 +1,12 @@
 // git のフック（.githooks/）から呼ばれる。
-//   node tools/harness/src/hook.ts pre-commit              ゲートと、無視されているファイルの混入を確かめる
+//   node tools/harness/src/hook.ts pre-commit              無視されているファイルの混入を確かめ、ステージしたファイルを整形してからゲートを通す
 //   node tools/harness/src/hook.ts commit-msg <ファイル>   コミットメッセージの決まりを確かめる
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readTasks } from "@nagaya/devboard/src/store.ts";
-import { decisionFilesOutsideMain, checkMessage } from "./commit.ts";
+import { decisionFilesOutsideMain, checkMessage, filesToFormat } from "./commit.ts";
 import { withoutGitEnv } from "./env.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
@@ -16,30 +16,59 @@ function git(args: string[], input?: string): string {
   return stdout ?? "";
 }
 
-const stagedPaths = (filter: string) => git(["diff", "--cached", "--name-only", `--diff-filter=${filter}`, "-z"]).split("\0").filter(Boolean);
+const stagedPaths = (filter: string) =>
+  git(["diff", "--cached", "--name-only", `--diff-filter=${filter}`, "-z"])
+    .split("\0")
+    .filter(Boolean);
 
 function fail(problems: string[]): never {
   for (const problem of problems) console.error(`commit: ${problem}`);
   process.exit(1);
 }
 
+// 書式はゲートで止めず、コミットの前に直す（決定記録 0013）。対象の絞り込みは biome.json の files.includes に任せる
+function formatStaged(staged: string[]): void {
+  const unstaged = git(["diff", "--name-only", "-z"]).split("\0").filter(Boolean);
+  const { format, skipped } = filesToFormat(staged, unstaged);
+  for (const path of skipped)
+    console.error(`commit: ${path} は一部だけステージされているので整形しない（あとで pnpm format を実行する）`);
+  if (!format.length) return;
+  const { status } = spawnSync("pnpm", ["exec", "biome", "format", "--write", "--no-errors-on-unmatched", ...format], {
+    cwd: ROOT,
+    stdio: "inherit",
+  });
+  if (status !== 0) fail(["整形（biome format）に失敗した。表示された構文の誤りを直す"]);
+  git(["add", "--", ...format]);
+}
+
 function preCommit(): void {
   const staged = stagedPaths("ACMR");
   // --no-index を付けると、すでに追加されたファイルも .gitignore に照らして判定する
-  const ignored = staged.length ? git(["check-ignore", "--no-index", "--stdin", "-z"], staged.join("\0")).split("\0").filter(Boolean) : [];
+  const ignored = staged.length
+    ? git(["check-ignore", "--no-index", "--stdin", "-z"], staged.join("\0")).split("\0").filter(Boolean)
+    : [];
   if (ignored.length) {
-    fail(ignored.map((path) => `${path} は .gitignore で無視されているファイル。コミットに入れない（git restore --staged ${path}）`));
+    fail(
+      ignored.map(
+        (path) => `${path} は .gitignore で無視されているファイル。コミットに入れない（git restore --staged ${path}）`,
+      ),
+    );
   }
-  const [gitDir, commonDir] = git(["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"]).trim().split("\n");
+  const [gitDir, commonDir] = git(["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"])
+    .trim()
+    .split("\n");
   const decisionFiles = decisionFilesOutsideMain(stagedPaths("ACMRD"), gitDir !== commonDir);
   if (decisionFiles.length) fail(decisionFiles);
+  formatStaged(staged);
   const { status } = spawnSync("pnpm", ["check"], { cwd: ROOT, stdio: "inherit", env: withoutGitEnv(process.env) });
   if (status !== 0) process.exit(status ?? 1);
 }
 
 function commitMsg(file: string | undefined): void {
   if (!file || !existsSync(file)) fail(["コミットメッセージのファイルが渡されていない"]);
-  const problems = checkMessage(readFileSync(file, "utf8"), { existingTasks: new Set(readTasks().tasks.map((t) => t.id)) });
+  const problems = checkMessage(readFileSync(file, "utf8"), {
+    existingTasks: new Set(readTasks().tasks.map((t) => t.id)),
+  });
   if (problems.length) fail(problems);
 }
 

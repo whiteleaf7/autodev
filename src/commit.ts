@@ -17,7 +17,16 @@ export function decisionFilesOutsideMain(staged: string[], linkedWorktree: boole
   if (!linkedWorktree) return [];
   return staged
     .filter((path) => DECISION_FILE.test(path))
-    .map((path) => `${path} は決定記録。決定記録は main の worktree で管理するので、作業用の worktree ではコミットしない（git restore --staged ${path}）`);
+    .map(
+      (path) =>
+        `${path} は決定記録。決定記録は main の worktree で管理するので、作業用の worktree ではコミットしない（git restore --staged ${path}）`,
+    );
+}
+
+// 一部だけステージしたファイルは整形しない。整形してステージし直すと、ステージしていない変更までコミットに入るため
+export function filesToFormat(staged: string[], unstaged: string[]): { format: string[]; skipped: string[] } {
+  const partial = new Set(unstaged);
+  return { format: staged.filter((path) => !partial.has(path)), skipped: staged.filter((path) => partial.has(path)) };
 }
 
 export function checkMessage(message: string, facts: CommitFacts): string[] {

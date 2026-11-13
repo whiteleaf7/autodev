@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { decisionFilesOutsideMain, checkMessage } from "../src/commit.ts";
+import { decisionFilesOutsideMain, checkMessage, filesToFormat } from "../src/commit.ts";
 import { applyEdits } from "../src/sandbox.ts";
 import { Scenario } from "../src/scenario.ts";
 import { summarize, type Outcome } from "../src/score.ts";
@@ -19,7 +19,10 @@ test("コードをコメント・文字列・それ以外に分け、位置を�
   assert.ok(!code.includes("x // y") && !code.includes("説明") && !code.includes("複数"));
   assert.ok(withStrings.includes('"x // y"') && !withStrings.includes("説明"));
   assert.ok(comments.includes("// 説明") && comments.includes("/* 複数") && !comments.includes("const"));
-  assert.ok(code.includes("b +") && code.includes("run();"), "テンプレートの ${ } の中と、正規表現の後ろはコードとして残る");
+  assert.ok(
+    code.includes("b +") && code.includes("run();"),
+    "テンプレートの ${ } の中と、正規表現の後ろはコードとして残る",
+  );
 });
 
 test("シナリオの編集を当て、当てられないときは理由を返す", () => {
@@ -29,7 +32,13 @@ test("シナリオの編集を当て、当てられないときは理由を返�
   assert.equal(readFileSync(join(dir, "a.txt"), "utf8"), "$1 & 1 two two\n");
   assert.match(applyEdits(dir, [{ file: "a.txt", find: "two", replace: "2" }]) ?? "", /2 回/);
   assert.match(applyEdits(dir, [{ file: "a.txt", find: "three", replace: "3" }]) ?? "", /0 回/);
-  assert.equal(applyEdits(dir, [{ file: "new/b.txt", write: "b" }, { file: "a.txt", delete: true }]), null);
+  assert.equal(
+    applyEdits(dir, [
+      { file: "new/b.txt", write: "b" },
+      { file: "a.txt", delete: true },
+    ]),
+    null,
+  );
   assert.ok(existsSync(join(dir, "new/b.txt")) && !existsSync(join(dir, "a.txt")));
   assert.match(applyEdits(dir, [{ file: "../outside.txt", write: "x" }]) ?? "", /外/);
 
@@ -49,14 +58,22 @@ test("シナリオは family と kind の組み合わせを検証する", () => 
   assert.ok(!Scenario.safeParse({ ...base, family: "docs", kind: "query", query: "q", expect: ["T-001"] }).success);
   assert.ok(!Scenario.safeParse({ ...base, family: "commits", kind: "bad", edits }).success, "commit が無い");
   const board = [{ op: "create_task", args: { title: "x", status: "wip" } }];
-  assert.ok(Scenario.safeParse({ ...base, family: "records", kind: "bad", board }).success, "不正な入力も、ボードに当てる例として読める");
-  assert.ok(!Scenario.safeParse({ ...base, family: "docs", kind: "bad", edits, board }).success, "board は records だけ");
+  assert.ok(
+    Scenario.safeParse({ ...base, family: "records", kind: "bad", board }).success,
+    "不正な入力も、ボードに当てる例として読める",
+  );
+  assert.ok(
+    !Scenario.safeParse({ ...base, family: "docs", kind: "bad", edits, board }).success,
+    "board は records だけ",
+  );
 });
 
 test("止めた数と引き出せた数を足し、誤検出は 2 点引く", () => {
   const result = (family: "docs" | "recall", kind: "bad" | "good" | "query", outcome: Outcome) => ({
     scenario: Scenario.parse(
-      kind === "query" ? { id: "x", family, kind, class: "c", title: "t", query: "q", expect: ["T-001"] } : { id: "x", family, kind, class: "c", title: "t", edits: [{ file: "a", write: "x" }] },
+      kind === "query"
+        ? { id: "x", family, kind, class: "c", title: "t", query: "q", expect: ["T-001"] }
+        : { id: "x", family, kind, class: "c", title: "t", edits: [{ file: "a", write: "x" }] },
     ),
     outcome,
     detail: "",
@@ -93,4 +110,10 @@ test("作業用の worktree では、決定記録をコミットさせない", (
   const problems = decisionFilesOutsideMain(staged, true);
   assert.equal(problems.length, 1);
   assert.match(problems[0] ?? "", /docs\/decisions\/0001-a\.md.*main/);
+});
+
+test("整形するのは、すべてステージしたファイルだけ", () => {
+  const { format, skipped } = filesToFormat(["tools/a.ts", "tools/b.ts", "tools/c.json"], ["tools/b.ts", "docs/x.md"]);
+  assert.deepEqual(format, ["tools/a.ts", "tools/c.json"]);
+  assert.deepEqual(skipped, ["tools/b.ts"]);
 });
