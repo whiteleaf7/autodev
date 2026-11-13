@@ -149,7 +149,8 @@ export async function screenshot(options: ScreenshotOptions): Promise<{ out: str
     const exited = once(chrome, "exit");
     chrome.kill();
     await exited;
-    await rm(profile, { recursive: true, force: true });
+    // 本体が終わっても、Chrome の補助プロセスが少しの間プロファイルに書き続け、ENOTEMPTY で消せないことがある（T-038）
+    await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 }
 
