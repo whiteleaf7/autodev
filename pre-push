@@ -1,7 +1,8 @@
 #!/bin/sh
 # roborev pre-push hook v3 - flushes pending post-commit batches before push
 # 上の行と ROBOREV= の絶対パスは roborev が確かめる（post-commit を参照）。
-# push の前に、まだ積んでいないレビューを roborev に渡す。push は止めない（決定記録 0012）
+# main への push を止める（決定記録 0015）。そのあと、まだ積んでいないレビューを roborev に渡す。roborev は push を止めない（決定記録 0012）
+node tools/harness/src/hook.ts pre-push || exit 1
 [ -n "$NAGAYA_SKIP_REVIEW" ] && exit 0
 ROBOREV="/opt/homebrew/bin/roborev"
 [ -x "$ROBOREV" ] || ROBOREV=$(command -v roborev 2>/dev/null) || exit 0
