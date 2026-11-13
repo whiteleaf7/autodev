@@ -79,6 +79,9 @@ test("検査のスクリプトを無意味にする変更を見つける", () =>
   assert.deepEqual(checksOf({ "package.json": `{"scripts":{"test":"pnpm --filter @nagaya/x test"}}` }), [
     "neutered-script",
   ]);
+  const root = { "package.json": `{"scripts":{"lint":"oxlint"}}` };
+  assert.deepEqual(checksOf({ "package.json": `{"scripts":{"lint":"oxlint || true"}}` }, root), ["neutered-script"]);
+  assert.deepEqual(checksOf({ "package.json": `{"scripts":{}}` }, root), ["neutered-script"]);
 });
 
 test("型エラーを黙らせるコメントを見つける", () => {
@@ -87,6 +90,62 @@ test("型エラーを黙らせるコメントを見つける", () => {
     "unplugged-package",
   ]);
   assert.deepEqual(checksOf({ "spikes/y/a.ts": `const text = "// @ts-ignore";\n` }), [], "文字列の中は見ない");
+});
+
+test("lint の設定を緩める変更を見つける", () => {
+  const file = ".oxlintrc.json";
+  const config = (extra = "") =>
+    `{ "options": { "typeAware": true }, "categories": { "correctness": "error" }, "rules": { "no-unused-vars": ["error", {}], "typescript/no-floating-promises": "error" }, "overrides": [{ "files": ["**/test/**"], "rules": { "typescript/no-floating-promises": "off" } }], "ignorePatterns": ["spikes/**"]${extra} }`;
+  const base = { [file]: config() };
+  assert.deepEqual(checksOf(base, base), []);
+  assert.deepEqual(
+    checksOf(
+      {
+        [file]: config().replace(
+          `"typescript/no-floating-promises": "error"`,
+          `"typescript/no-floating-promises": "warn"`,
+        ),
+      },
+      base,
+    ),
+    ["loosened-lint-config"],
+  );
+  assert.deepEqual(checksOf({ [file]: config().replace(`["error", {}]`, `"off"`) }, base), ["loosened-lint-config"]);
+  assert.deepEqual(checksOf({ [file]: config().replace(`"correctness": "error"`, `"correctness": "warn"`) }, base), [
+    "loosened-lint-config",
+  ]);
+  assert.deepEqual(
+    checksOf(
+      { [file]: config().replace(`"rules": { "no-unused-vars"`, `"rules": { "no-debugger": "off", "no-unused-vars"`) },
+      base,
+    ),
+    ["loosened-lint-config"],
+  );
+  assert.deepEqual(checksOf({ [file]: config().replace(`["spikes/**"]`, `["spikes/**", "tools/**"]`) }, base), [
+    "loosened-lint-config",
+  ]);
+  assert.deepEqual(checksOf({ [file]: config().replace(`"typeAware": true`, `"typeAware": false`) }, base), [
+    "loosened-lint-config",
+  ]);
+  assert.deepEqual(checksOf({}, base), ["loosened-lint-config"]);
+  assert.deepEqual(
+    checksOf(
+      { [file]: `// コメントは許す\n${config().replace(`"no-unused-vars"`, `"eqeqeq": "error", "no-unused-vars"`)}` },
+      base,
+    ),
+    [],
+    "強める変更は通す",
+  );
+});
+
+test("lint を黙らせるコメントは、行ごとで理由があるものだけを通す", () => {
+  const code = (comment: string) => `${comment}\nexport const a = 1;\n`;
+  const checks = (comment: string) => checksOf({ "spikes/y/a.ts": code(comment) });
+  assert.deepEqual(checks("/* oxlint-disable */"), ["suppressed-lint"]);
+  assert.deepEqual(checks("// eslint-disable no-console"), ["suppressed-lint"]);
+  assert.deepEqual(checks("// oxlint-disable-next-line no-console"), ["suppressed-lint"]);
+  assert.deepEqual(checks("// oxlint-disable-next-line no-console -- CLI の出力として使う"), []);
+  assert.deepEqual(checksOf({ "spikes/y/a.ts": `const text = "// oxlint-disable";\n` }), [], "文字列の中は見ない");
 });
 
 test("パッケージが検査から外れる変更を見つける", () => {

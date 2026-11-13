@@ -13,6 +13,8 @@ const SKIP_OPTION =
 const TEST_CASE = /(?<![.\w$])(test|it)\s*\(/g;
 const ASSERTION = /\bassert\b|\bexpect\s*\(/;
 const SUPPRESSION = /@ts-(ignore|expect-error|nocheck)\b/g;
+// 行ごとに外すのは、理由（-- のあと）があれば通す。ファイルごと外すのは通さない
+const LINT_SUPPRESSION = /\b(?:oxlint|eslint)-disable(-next-line|-line)?\b([^\n]*)/g;
 const CODE_FILE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 
 const STRICT_FLAGS = [
@@ -42,7 +44,9 @@ const REQUIRED_FLAGS = ["strict", "noUncheckedIndexedAccess", "erasableSyntaxOnl
 // true にすると検査が緩むもの
 const LOOSENING_FLAGS = ["noCheck", "allowUnreachableCode", "allowUnusedLabels", "noStrictGenericChecks"];
 
-const GATE_SCRIPTS = ["typecheck", "test", "check"];
+const GATE_SCRIPTS = ["typecheck", "test", "lint", "check"];
+const LINT_CONFIG = ".oxlintrc.json";
+const SEVERITY: Record<string, number> = { off: 0, allow: 0, warn: 1, error: 2, deny: 2 };
 const NEUTERED = [
   /\|\|/, // 失敗を無視する
   /^\s*(true|:|exit\b.*|echo\b.*)\s*$/, // 何もしない
@@ -108,10 +112,12 @@ function hollowTests(repo: Repo): Problem[] {
 
 type TsConfig = { compilerOptions: Record<string, unknown>; include: string[]; exclude: string[] };
 
-// tsconfig はコメントと末尾のカンマを許す
+// tsconfig と .oxlintrc.json は、コメントと末尾のカンマを許す
+const parseJsonc = (text: string | null) =>
+  text === null ? null : parseJson(scan(text).withStrings.replace(/,(\s*[}\]])/g, "$1"));
+
 function parseTsConfig(text: string | null): TsConfig | null {
-  if (text === null) return null;
-  const json = parseJson(scan(text).withStrings.replace(/,(\s*[}\]])/g, "$1"));
+  const json = parseJsonc(text);
   if (typeof json !== "object" || json === null) return null;
   const { compilerOptions, include, exclude } = json as Record<string, unknown>;
   const strings = (value: unknown) =>
@@ -190,6 +196,71 @@ function scripts(repo: Repo): Problem[] {
   return problems;
 }
 
+type LintConfig = { levels: Map<string, number>; ignores: string[]; typeAware: boolean };
+
+const severityOf = (value: unknown): number => {
+  const level = Array.isArray(value) ? value[0] : value;
+  return typeof level === "number" ? level : (SEVERITY[String(level)] ?? 0);
+};
+
+const objectOf = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+
+// カテゴリ・ルール・overrides のルールを、「どこの何か」をキーにした重さに広げる
+function parseLintConfig(text: string | null): LintConfig | null {
+  const json = parseJsonc(text);
+  if (typeof json !== "object" || json === null) return null;
+  const { categories, rules, overrides, ignorePatterns, options } = json as Record<string, unknown>;
+  const levels = new Map<string, number>();
+  for (const [name, level] of Object.entries(objectOf(categories))) levels.set(`カテゴリ ${name}`, severityOf(level));
+  for (const [name, level] of Object.entries(objectOf(rules))) levels.set(`ルール ${name}`, severityOf(level));
+  for (const override of Array.isArray(overrides) ? overrides : []) {
+    const { files, rules: overrideRules } = objectOf(override);
+    const where = Array.isArray(files) ? files.join(", ") : "?";
+    for (const [name, level] of Object.entries(objectOf(overrideRules)))
+      levels.set(`${where} のルール ${name}`, severityOf(level));
+  }
+  const ignores = Array.isArray(ignorePatterns) ? ignorePatterns.filter((p): p is string => typeof p === "string") : [];
+  return { levels, ignores, typeAware: objectOf(options).typeAware === true };
+}
+
+function lintConfig(repo: Repo): Problem[] {
+  const before = parseLintConfig(repo.base?.read(LINT_CONFIG) ?? null);
+  if (!before) return [];
+  const problems: Problem[] = [];
+  const add = (message: string) => problems.push({ check: "loosened-lint-config", file: LINT_CONFIG, message });
+  const now = parseLintConfig(repo.read(LINT_CONFIG));
+  if (!now) {
+    add("lint の設定が消えたか、読めない");
+    return problems;
+  }
+  for (const [key, level] of before.levels)
+    if ((now.levels.get(key) ?? 0) < level) add(`${key} を緩めている・外している`);
+  for (const [key, level] of now.levels) if (!before.levels.has(key) && level === 0) add(`${key} を切っている`);
+  for (const pattern of now.ignores)
+    if (!before.ignores.includes(pattern)) add(`${pattern} を lint の対象から外している（ignorePatterns）`);
+  if (before.typeAware && !now.typeAware) add("型情報を使うルール（typeAware）を止めている");
+  return problems;
+}
+
+function lintSuppressions(repo: Repo): Problem[] {
+  return repo.files
+    .filter((f) => CODE_FILE.test(f))
+    .flatMap((file) => {
+      const { comments } = scan(repo.read(file) ?? "");
+      return [...comments.matchAll(LINT_SUPPRESSION)]
+        .filter((m) => !m[1] || !/\s--\s*\S/.test(m[2] ?? ""))
+        .map((m) => ({
+          check: "suppressed-lint",
+          file,
+          line: lineOf(comments, m.index),
+          message: m[1]
+            ? "lint を理由なしで外している。直すか、`-- 理由` を書き足す"
+            : "lint をファイルごと外している。行ごとに、理由（`-- 理由`）を付けて外す",
+        }));
+    });
+}
+
 function suppressions(repo: Repo): Problem[] {
   return repo.files
     .filter((f) => CODE_FILE.test(f))
@@ -264,6 +335,8 @@ export function checkGate(repo: Repo): Problem[] {
     ...tsconfigs(repo),
     ...scripts(repo),
     ...suppressions(repo),
+    ...lintConfig(repo),
+    ...lintSuppressions(repo),
     ...workspace(repo),
   ];
 }

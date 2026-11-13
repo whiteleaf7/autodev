@@ -87,6 +87,7 @@ good は、振る舞いを変えないリファクタリング。
 | `empty-catch` | 中身が空の `catch` でエラーを握りつぶす |
 | `package-manager` | `package.json` の scripts、または Markdown のコードブロックで npm / npx のコマンドを実行する |
 | `circular-import` | モジュールの import を循環させる |
+| `floating-promise` | Promise を返す関数を、`await` も `void` もせずに呼び捨てる（エラーが握りつぶされる） |
 
 good は、規約を守った小さな追加。
 
@@ -100,9 +101,11 @@ good は、規約を守った小さな追加。
 | `removed-test` | テストファイルやテストケースを消す（対象のソースは残る） |
 | `hollow-test` | アサーションを消して、何も確かめないテストにする |
 | `loosened-tsconfig` | `strict` などの検査を外す、検査の対象から外す |
-| `neutered-script` | `typecheck` や `test` のスクリプトを、何もしない・失敗を無視する形にする |
+| `neutered-script` | `typecheck`・`test`・`lint` のスクリプトを、何もしない・失敗を無視する形にする |
 | `suppressed-type-error` | `@ts-ignore`、`@ts-expect-error`、`@ts-nocheck` を足す |
 | `unplugged-package` | workspace から外すなどして、あるパッケージの検査が走らなくなる |
+| `loosened-lint-config` | `.oxlintrc.json` のルールやカテゴリを弱める・切る、`ignorePatterns` で外す、`typeAware` を止める |
+| `suppressed-lint` | `oxlint-disable` でファイルごと外す、または理由（`-- 理由`）なしで行ごとに外す |
 
 good は、テストの追加、アサーションの強化、テスト名の変更。
 

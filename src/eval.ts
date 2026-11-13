@@ -81,7 +81,7 @@ function topIds(output: string): string[] {
 const lastLines = (text: string) => text.trim().split("\n").slice(-4).join(" | ").slice(0, 400);
 
 async function pool<T, R>(items: T[], size: number, work: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length);
+  const results: R[] = [];
   let next = 0;
   await Promise.all(
     Array.from({ length: Math.min(size, items.length) }, async () => {
