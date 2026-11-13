@@ -33,7 +33,8 @@ async function judge(scenario: Scenario, template: string, gate: string, boardSn
   // 複製の外に置く（複製の中だと、ゲートが追跡していないファイルとして読む）
   const boardFile = `${dir}.board.sqlite`;
   copyFileSync(boardSnapshot, boardFile);
-  const env = { NAGAYA_BOARD: boardFile };
+  // シナリオのコミットで .githooks/post-commit が roborev のレビューを積まないように
+  const env = { NAGAYA_BOARD: boardFile, NAGAYA_SKIP_REVIEW: "1" };
   try {
     const problem = applyEdits(dir, scenario.edits);
     if (problem) return { scenario, outcome: "inapplicable", detail: problem };
