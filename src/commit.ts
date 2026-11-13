@@ -10,23 +10,16 @@ const CONVENTIONAL = new RegExp(`^(${TYPES.join("|")})(\\([^()\\s]+\\))?!?: \\S`
 // git が自分で作るメッセージ
 const GENERATED = /^(Merge |Revert "|fixup! |squash! |amend! )/;
 
-const DECISION_FILE = /^docs\/decisions\//;
-
-// 決定記録は main の worktree に書く（store がそこに書く。決定記録 0010、0011）。作業用の worktree にあるのは古い写しなので、コミットしない
-export function decisionFilesOutsideMain(staged: string[], linkedWorktree: boolean): string[] {
-  if (!linkedWorktree) return [];
-  return staged
-    .filter((path) => DECISION_FILE.test(path))
-    .map(
-      (path) =>
-        `${path} は決定記録。決定記録は main の worktree で管理するので、作業用の worktree ではコミットしない（git restore --staged ${path}）`,
-    );
-}
-
 // 一部だけステージしたファイルは整形しない。整形してステージし直すと、ステージしていない変更までコミットに入るため
 export function filesToFormat(staged: string[], unstaged: string[]): { format: string[]; skipped: string[] } {
   const partial = new Set(unstaged);
   return { format: staged.filter((path) => !partial.has(path)), skipped: staged.filter((path) => partial.has(path)) };
+}
+
+// pre-push が標準入力で受け取る行（<ローカルの ref> <SHA> <リモートの ref> <SHA>）から、main への push を見つける。
+// main は PR でしか進めない（決定記録 0015）。GitHub Free の private ではルールセットが使えないので、ここで止める
+export function pushesToMain(refs: string): boolean {
+  return refs.split("\n").some((line) => line.trim().split(/\s+/)[2] === "refs/heads/main");
 }
 
 export function checkMessage(message: string, facts: CommitFacts): string[] {

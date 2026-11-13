@@ -1,12 +1,13 @@
 // git のフック（.githooks/）から呼ばれる。
 //   node tools/harness/src/hook.ts pre-commit              無視されているファイルの混入を確かめ、ステージしたファイルを整形してからゲートを通す
 //   node tools/harness/src/hook.ts commit-msg <ファイル>   コミットメッセージの決まりを確かめる
+//   node tools/harness/src/hook.ts pre-push                main への push を止める
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readTasks } from "@nagaya/devboard/src/store.ts";
-import { decisionFilesOutsideMain, checkMessage, filesToFormat } from "./commit.ts";
+import { checkMessage, filesToFormat, pushesToMain } from "./commit.ts";
 import { withoutGitEnv } from "./env.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
@@ -54,11 +55,6 @@ function preCommit(): void {
       ),
     );
   }
-  const [gitDir, commonDir] = git(["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"])
-    .trim()
-    .split("\n");
-  const decisionFiles = decisionFilesOutsideMain(stagedPaths("ACMRD"), gitDir !== commonDir);
-  if (decisionFiles.length) fail(decisionFiles);
   formatStaged(staged);
   const { status } = spawnSync("pnpm", ["check"], { cwd: ROOT, stdio: "inherit", env: withoutGitEnv(process.env) });
   if (status !== 0) process.exit(status ?? 1);
@@ -72,7 +68,13 @@ function commitMsg(file: string | undefined): void {
   if (problems.length) fail(problems);
 }
 
+function prePush(): void {
+  if (pushesToMain(readFileSync(0, "utf8")))
+    fail(["main には直接 push しない。ブランチの上で pnpm land を実行し、PR から取り込む（決定記録 0015）"]);
+}
+
 const [hook, arg] = process.argv.slice(2);
 if (hook === "pre-commit") preCommit();
 else if (hook === "commit-msg") commitMsg(arg);
+else if (hook === "pre-push") prePush();
 else fail([`知らないフック: ${hook ?? "（指定なし）"}`]);

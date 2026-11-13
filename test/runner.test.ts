@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { decisionFilesOutsideMain, checkMessage, filesToFormat } from "../src/commit.ts";
+import { checkMessage, filesToFormat } from "../src/commit.ts";
 import { applyEdits } from "../src/sandbox.ts";
 import { Scenario } from "../src/scenario.ts";
 import { summarize, type Outcome } from "../src/score.ts";
@@ -102,14 +102,6 @@ test("コミットメッセージの決まりを確かめる", () => {
   assert.equal(ok("docs:").length, 1);
   assert.match(ok("docs: 調査メモを追加")[0] ?? "", /英語/);
   assert.match(ok("docs: add note\n\nTask: T-777")[0] ?? "", /T-777/);
-});
-
-test("作業用の worktree では、決定記録をコミットさせない", () => {
-  const staged = ["tools/a.ts", "dev/harness/history.jsonl", "docs/decisions/0001-a.md", "docs/harness.md"];
-  assert.deepEqual(decisionFilesOutsideMain(staged, false), [], "main の worktree では止めない");
-  const problems = decisionFilesOutsideMain(staged, true);
-  assert.equal(problems.length, 1);
-  assert.match(problems[0] ?? "", /docs\/decisions\/0001-a\.md.*main/);
 });
 
 test("整形するのは、すべてステージしたファイルだけ", () => {

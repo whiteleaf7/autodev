@@ -1,17 +1,22 @@
-// 作業用の worktree のブランチを、main に 1 件ずつ取り込む（決定記録 0010）。作業用の worktree の中で `pnpm land` を実行する。
-// 取り込みのロックを取り、main に rebase し、その結果でゲート（pnpm check）を通し、main の worktree で fast-forward する。
-// main は、ゲートを通った状態でしか進まない。フックの設定に頼らずゲートを通すので、core.hooksPath が書き換えられても効く。
+// ブランチを、PR を通して main に 1 件ずつ取り込む（決定記録 0010、0015）。main 以外のブランチの上で `pnpm land` を実行する。
+// 取り込みのロックを取り、origin/main に rebase し、その結果でゲート（pnpm check）を通し、ブランチを push して draft の PR を作る。
+// CI が通ったら PR を ready にして rebase でマージし、ローカルの main を origin/main に進める。
+// main は、ローカルのゲートと CI を通った状態でしか進まない。フックの設定に頼らずゲートを通すので、core.hooksPath が書き換えられても効く。
 
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { withoutGitEnv } from "./env.ts";
+import { ciVerdict, type Check, type Commit, pullRequestBody } from "./pull-request.ts";
 import { parseWorktrees } from "./worktrees.ts";
 
-// ボードの変更だけのコミットが main に入ると fast-forward できなくなるので、rebase からやり直す回数
-const ATTEMPTS = 3;
+const REMOTE = "origin";
+const MAIN = "main";
+const UPSTREAM = `${REMOTE}/${MAIN}`;
 const WAIT_MS = 15 * 60_000;
 const POLL_MS = 500;
+const CI_WAIT_MS = 20 * 60_000;
+const CI_POLL_MS = 10_000;
 
 class LandError extends Error {}
 
@@ -24,6 +29,13 @@ function gitOut(cwd: string, args: string[]): string {
   const { ok, out } = git(cwd, args);
   if (!ok) throw new LandError(`git ${args.join(" ")} が失敗した: ${out}`);
   return out;
+}
+
+function gh(cwd: string, args: string[]): string {
+  const { status, stdout, stderr, error } = spawnSync("gh", args, { cwd, encoding: "utf8" });
+  if (error) throw new LandError(`gh を実行できない（GitHub CLI を入れ、gh auth login する）: ${error.message}`);
+  if (status !== 0) throw new LandError(`gh ${args.join(" ")} が失敗した: ${`${stdout}${stderr}`.trim()}`);
+  return stdout.trim();
 }
 
 type Owner = { pid: number; branch: string };
@@ -46,7 +58,7 @@ function alive(pid: number): boolean {
 }
 
 // 取り込みは数十秒かかるので、時間ではなく、持ち主のプロセスが生きているかで、残ったロックを見分ける
-async function withLandLock<T>(lock: string, branch: string, fn: () => T): Promise<T> {
+async function withLandLock<T>(lock: string, branch: string, fn: () => Promise<T>): Promise<T> {
   const deadline = Date.now() + WAIT_MS;
   let announced = false;
   for (;;) {
@@ -70,7 +82,7 @@ async function withLandLock<T>(lock: string, branch: string, fn: () => T): Promi
     }
   }
   try {
-    return fn();
+    return await fn();
   } finally {
     rmSync(lock, { recursive: true, force: true });
   }
@@ -94,36 +106,114 @@ function gate(top: string): void {
     );
 }
 
+function commitsOf(top: string, range: string): Commit[] {
+  const log = gitOut(top, ["log", "--reverse", "--format=%s%x1f%b%x1e", range]);
+  return log
+    .split("\x1e")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [subject = "", body = ""] = entry.split("\x1f");
+      return { subject, body };
+    });
+}
+
+// 同じブランチの開いた PR があれば使い回す（CI が落ちて直したあとの、2 回目の land）
+function openPullRequest(top: string, branch: string, commits: Commit[]): string {
+  const existing = gh(top, [
+    "pr",
+    "list",
+    "--head",
+    branch,
+    "--state",
+    "open",
+    "--json",
+    "number",
+    "--jq",
+    ".[0].number",
+  ]);
+  if (existing) return existing;
+  const url = gh(top, [
+    "pr",
+    "create",
+    "--draft",
+    "--base",
+    MAIN,
+    "--head",
+    branch,
+    "--title",
+    commits[0]?.subject ?? branch,
+    "--body",
+    pullRequestBody(commits),
+  ]);
+  return url.split("/").pop() ?? url;
+}
+
+async function waitForCi(top: string, pr: string): Promise<void> {
+  const deadline = Date.now() + CI_WAIT_MS;
+  for (;;) {
+    // 失敗したチェックがあると gh は 0 以外で終わるので、終了コードではなく中身で判断する
+    const { stdout } = spawnSync("gh", ["pr", "checks", pr, "--json", "name,bucket"], { cwd: top, encoding: "utf8" });
+    const verdict = ciVerdict(stdout?.trim() ? (JSON.parse(stdout) as Check[]) : []);
+    if (verdict.state === "pass") return;
+    if (verdict.state === "fail")
+      throw new LandError(
+        `PR #${pr} の CI が落ちた（${verdict.failed.join(", ")}）。マージはしていない。gh pr checks ${pr} で確かめて直し、コミットしてもう一度 pnpm land を実行する`,
+      );
+    if (Date.now() > deadline) throw new LandError(`PR #${pr} の CI が ${CI_WAIT_MS / 60_000} 分たっても終わらない`);
+    await new Promise((r) => setTimeout(r, CI_POLL_MS));
+  }
+}
+
+// GitHub の rebase マージはコミットを作り直すので、ブランチを origin/main に合わせてから main を進める。
+// こうしておくと、pnpm worktree:prune が「取り込み済み」と判断できる
+function syncMain(top: string, branch: string): void {
+  gitOut(top, ["fetch", "-q", REMOTE, MAIN]);
+  gitOut(top, ["reset", "-q", "--hard", UPSTREAM]);
+  const worktrees = () => parseWorktrees(gitOut(top, ["worktree", "list", "--porcelain"]));
+  const inMainWorktree = realpathSync(worktrees()[0]?.path ?? "") === top;
+  if (inMainWorktree) gitOut(top, ["switch", "-q", MAIN]);
+  const holder = worktrees().find((w) => w.branch === MAIN);
+  if (!holder) gitOut(top, ["branch", "-f", MAIN, UPSTREAM]);
+  else if (!git(holder.path, ["merge", "-q", "--ff-only", UPSTREAM]).ok)
+    throw new LandError(
+      `PR はマージした。${holder.path} の ${MAIN} を ${UPSTREAM} に fast-forward できなかったので、そこで git pull --ff-only を実行する`,
+    );
+  if (inMainWorktree) gitOut(top, ["branch", "-q", "-d", branch]);
+}
+
 async function land(): Promise<void> {
   const top = realpathSync(gitOut(process.cwd(), ["rev-parse", "--show-toplevel"]));
-  const [main] = parseWorktrees(gitOut(top, ["worktree", "list", "--porcelain"]));
-  if (!main || realpathSync(main.path) === top)
-    throw new LandError("main の worktree では使わない。作業用の worktree の中で実行する");
-  if (!main.branch) throw new LandError(`main の worktree（${main.path}）がブランチを開いていない`);
   const branch = gitOut(top, ["branch", "--show-current"]);
   if (!branch) throw new LandError("ブランチの上で実行する（detached HEAD になっている）");
+  if (branch === MAIN)
+    throw new LandError(`${MAIN} の上では使わない。ブランチを作るか、作業用の worktree の中で実行する`);
   if (gitOut(top, ["status", "--porcelain"]))
     throw new LandError("コミットしていない変更か、追跡していないファイルがある。コミットするか片付けてから実行する");
-  if (gitOut(top, ["rev-list", "--count", `${main.branch}..${branch}`]) === "0")
-    throw new LandError(`${main.branch} に無いコミットが無い`);
+  if (!git(top, ["remote", "get-url", REMOTE]).ok) throw new LandError(`リモート ${REMOTE} が無い`);
 
   const lock = join(gitOut(top, ["rev-parse", "--path-format=absolute", "--git-common-dir"]), "nagaya-land.lock");
-  await withLandLock(lock, branch, () => {
-    for (let attempt = 1; ; attempt++) {
-      rebase(top, main.branch!);
-      gate(top);
-      const merged = git(main.path, ["merge", "-q", "--ff-only", branch]);
-      if (merged.ok) break;
-      const mainMoved = !git(top, ["merge-base", "--is-ancestor", main.branch!, branch]).ok;
-      if (!mainMoved || attempt === ATTEMPTS) {
-        throw new LandError(
-          `main の worktree（${main.path}）で fast-forward できなかった。取り込みはしていない: ${merged.out}`,
-        );
-      }
-      console.error(`land: ゲートの間に ${main.branch} が進んだので、rebase からやり直す`);
-    }
+  const merged = await withLandLock(lock, branch, async () => {
+    gitOut(top, ["fetch", "-q", REMOTE, MAIN]);
+    if (gitOut(top, ["rev-list", "--count", `${UPSTREAM}..${branch}`]) === "0")
+      throw new LandError(`${UPSTREAM} に無いコミットが無い`);
+    rebase(top, UPSTREAM);
+    gate(top);
+    // rebase で作り直したブランチを上書きする。main ではないので、force push の禁止には当たらない
+    gitOut(top, ["push", "-q", "--force-with-lease", "-u", REMOTE, branch]);
+    const head = gitOut(top, ["rev-parse", "HEAD"]);
+    const pr = openPullRequest(top, branch, commitsOf(top, `${UPSTREAM}..${branch}`));
+    console.error(`land: PR #${pr} の CI を待っている`);
+    await waitForCi(top, pr);
+    gh(top, ["pr", "ready", pr]);
+    // CI を通したコミットのままのときだけマージする
+    gh(top, ["pr", "merge", pr, "--rebase", "--match-head-commit", head]);
+    syncMain(top, branch);
+    return pr;
   });
-  console.log(`land: ${branch} を ${main.branch} に取り込んだ（${gitOut(top, ["log", "-1", "--format=%h %s"])}）`);
+  console.log(
+    `land: PR #${merged} をマージし、${MAIN} を進めた（${gitOut(top, ["log", "-1", "--format=%h %s", MAIN])}）`,
+  );
 }
 
 try {
