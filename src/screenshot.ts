@@ -27,6 +27,9 @@ export async function screenshot(options: ScreenshotOptions): Promise<{ out: str
   return withChrome(options.timeoutMs, async (browser) => {
     const page = await browser.page();
     await setViewport(page, options);
+    await page.send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-color-scheme", value: options.dark ? "dark" : "light" }],
+    });
     await page.send("Page.navigate", { url: options.url });
     await waitUntil(
       async () => (await page.evaluate("document.readyState")) === "complete",

@@ -29,6 +29,8 @@ const ScreenshotOptions = z
     width: z.coerce.number().int().positive().optional(),
     height: z.coerce.number().int().positive().optional(),
     mobile: z.boolean().default(false),
+    // prefers-color-scheme を dark にして撮る（省くと light）
+    dark: z.boolean().default(false),
     timeoutMs: z.coerce.number().int().positive().default(15_000),
   })
   .transform((options) => {
@@ -38,7 +40,7 @@ const ScreenshotOptions = z
 export type ScreenshotOptions = z.infer<typeof ScreenshotOptions>;
 
 export const usage =
-  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--fill <CSS セレクタ>=<値>]... [--click <CSS セレクタ>]... [--wait-after <CSS セレクタ>] [--width 1280] [--height 800] [--mobile] [--timeout 15000]";
+  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--fill <CSS セレクタ>=<値>]... [--click <CSS セレクタ>]... [--wait-after <CSS セレクタ>] [--width 1280] [--height 800] [--mobile] [--dark] [--timeout 15000]";
 
 export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
   const { positionals, values } = parseArgs({
@@ -52,6 +54,7 @@ export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
       width: { type: "string" },
       height: { type: "string" },
       mobile: { type: "boolean" },
+      dark: { type: "boolean" },
       timeout: { type: "string" },
     },
   });
@@ -65,6 +68,7 @@ export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
     width: values.width,
     height: values.height,
     mobile: values.mobile,
+    dark: values.dark,
     timeoutMs: values.timeout,
   });
   if (!parsed.success) {

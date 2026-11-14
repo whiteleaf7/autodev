@@ -18,6 +18,7 @@ test("引数を既定値つきで読む", () => {
     width: 1280,
     height: 800,
     mobile: false,
+    dark: false,
     timeoutMs: 15_000,
   });
 });
@@ -61,6 +62,7 @@ test("ページを撮り、撮る前に入力欄に値を入れて指定の要�
     width: 320,
     height: 200,
     mobile: false,
+    dark: false,
     timeoutMs: 15_000,
   });
   const png = await readFile(result.out);
@@ -87,6 +89,7 @@ test("--mobile では、スクロールバーが幅を取らず、タッチの�
       width: 390,
       height: 844,
       mobile,
+      dark: false,
       timeoutMs: 15_000,
     });
 
@@ -98,4 +101,26 @@ test("--mobile では、スクロールバーが幅を取らず、タッチの�
   const mobile = await shoot(true);
   assert.equal((await readFile(mobile.out)).readUInt32BE(16), 780);
   assert.deepEqual(mobile.problems, ["console.error: 390 true"]);
+});
+
+test("--dark では、prefers-color-scheme を dark にして描く", {
+  skip: !chromeInstalled && "Chrome がない",
+}, async (t) => {
+  const html = "<script>console.error(matchMedia('(prefers-color-scheme: dark)').matches)</script>";
+  const dir = await mkdtemp(join(tmpdir(), "nagaya-verify-test-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const shoot = (dark: boolean) =>
+    screenshot({
+      url: `data:text/html,${encodeURIComponent(html)}`,
+      out: join(dir, `${dark}.png`),
+      fill: [],
+      click: [],
+      width: 320,
+      height: 200,
+      mobile: false,
+      dark,
+      timeoutMs: 15_000,
+    });
+  assert.deepEqual((await shoot(false)).problems, ["console.error: false"]);
+  assert.deepEqual((await shoot(true)).problems, ["console.error: true"]);
 });

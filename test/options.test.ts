@@ -13,6 +13,7 @@ test("省略した引数は既定値になり、渡した値は数として読�
     width: 1280,
     height: 800,
     mobile: false,
+    dark: false,
     timeoutMs: 15_000,
   });
   assert.deepEqual(
@@ -35,6 +36,7 @@ test("省略した引数は既定値になり、渡した値は数として読�
       "input[name=code]=ABCD-EFGH",
       "--wait-after",
       "#done",
+      "--dark",
     ]),
     {
       url: "https://example.com/a",
@@ -46,6 +48,7 @@ test("省略した引数は既定値になり、渡した値は数として読�
       width: 320,
       height: 200,
       mobile: false,
+      dark: true,
       timeoutMs: 500,
     },
   );
