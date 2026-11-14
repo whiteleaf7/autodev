@@ -144,6 +144,19 @@ test("lint の設定を緩める変更を見つける", () => {
   assert.deepEqual(
     checksOf(
       {
+        [file]: config().replace(
+          `"typescript/no-floating-promises": "off"`,
+          `"typescript/no-floating-promises": "off", "no-debugger": "off"`,
+        ),
+      },
+      base,
+    ),
+    ["loosened-lint-config"],
+    "カテゴリで有効なだけのルールを、overrides で切る",
+  );
+  assert.deepEqual(
+    checksOf(
+      {
         [file]: config()
           .replace(`"rules": { "no-unused-vars"`, `"rules": { "no-empty-function": "error", "no-unused-vars"`)
           .replace(

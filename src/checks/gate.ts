@@ -245,11 +245,14 @@ function lintConfig(repo: Repo): Problem[] {
   for (const entry of before.levels)
     if ((levelIn(now.levels, entry.scope, entry.name) ?? 0) < entry.level)
       add(`${labelOf(entry)} を緩めている・外している`);
-  // overrides で新しく切るのは、基点で全体に有効だったルールだけを問題にする（同じ変更で足したルールを、一部で切るのは構わない）
+  // overrides で新しく切るのを通すのは、同じ変更で全体に足したルールだけ。
+  // カテゴリで有効なだけのルールは rules に名前が無いので、名前で「基点で有効だったか」は決められない
+  const addedNow = (name: string) =>
+    (levelIn(before.levels, "rules", name) ?? 0) === 0 && (levelIn(now.levels, "rules", name) ?? 0) > 0;
   for (const entry of now.levels) {
     if (entry.level > 0 || levelIn(before.levels, entry.scope, entry.name) !== undefined) continue;
     const isOverride = entry.scope !== "categories" && entry.scope !== "rules";
-    if (!isOverride || (levelIn(before.levels, "rules", entry.name) ?? 0) > 0) add(`${labelOf(entry)} を切っている`);
+    if (!isOverride || !addedNow(entry.name)) add(`${labelOf(entry)} を切っている`);
   }
   for (const pattern of now.ignores)
     if (!before.ignores.includes(pattern)) add(`${pattern} を lint の対象から外している（ignorePatterns）`);

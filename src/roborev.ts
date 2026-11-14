@@ -15,7 +15,7 @@ const DoctorReport = z.object({
 
 const QUIET_STATUSES = new Set(["ok", "info"]);
 
-// 承知のうえで残している警告。REVIEW.md を書くかは T-048 で決める
+// 承知のうえで残している警告。REVIEW.md は書かない（レビューする Claude Code は CLAUDE.md を読み、穴は評価のシナリオで守る。T-048）
 const ACCEPTED = new Set(["repo.guidelines"]);
 
 const HOOKS_ADVICE =
