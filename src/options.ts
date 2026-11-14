@@ -31,6 +31,10 @@ const ScreenshotOptions = z
     mobile: z.boolean().default(false),
     // prefers-color-scheme を dark にして撮る（省くと light）
     dark: z.boolean().default(false),
+    // prefers-reduced-motion を reduce にして撮る（動きを止める設定の画面）
+    reducedMotion: z.boolean().default(false),
+    // 撮ったあと、このミリ秒だけ待って同じ画面をもう 1 枚撮る（<出力先>-later.png）。動いているかを 2 枚の違いで確かめる
+    laterMs: z.coerce.number().int().positive().optional(),
     // ブラウザの言語（navigator.languages と Intl）を、この言語タグにして撮る（省くと Chrome のまま）
     lang: z
       .string()
@@ -51,7 +55,7 @@ const ScreenshotOptions = z
 export type ScreenshotOptions = z.infer<typeof ScreenshotOptions>;
 
 export const usage =
-  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--fill <CSS セレクタ>=<値>]... [--click <CSS セレクタ>]... [--wait-after <CSS セレクタ>] [--width 1280] [--height 800] [--mobile] [--dark] [--lang ja] [--timeout 15000]";
+  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--fill <CSS セレクタ>=<値>]... [--click <CSS セレクタ>]... [--wait-after <CSS セレクタ>] [--width 1280] [--height 800] [--mobile] [--dark] [--reduced-motion] [--later <ミリ秒>] [--lang ja] [--timeout 15000]";
 
 export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
   const { positionals, values } = parseArgs({
@@ -66,6 +70,8 @@ export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
       height: { type: "string" },
       mobile: { type: "boolean" },
       dark: { type: "boolean" },
+      "reduced-motion": { type: "boolean" },
+      later: { type: "string" },
       lang: { type: "string" },
       timeout: { type: "string" },
     },
@@ -81,6 +87,8 @@ export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
     height: values.height,
     mobile: values.mobile,
     dark: values.dark,
+    reducedMotion: values["reduced-motion"],
+    laterMs: values.later,
     lang: values.lang,
     timeoutMs: values.timeout,
   });

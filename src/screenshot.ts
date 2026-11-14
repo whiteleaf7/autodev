@@ -30,12 +30,20 @@ async function setLanguage(page: Page, lang: string): Promise<void> {
   await page.send("Emulation.setLocaleOverride", { locale: lang });
 }
 
-export async function screenshot(options: ScreenshotOptions): Promise<{ out: string; problems: string[] }> {
+// 2 枚目は、出力先の名前に -later を足した場所に置く
+export const laterPath = (out: string): string => out.replace(/\.png$/, "-later.png");
+
+export async function screenshot(
+  options: ScreenshotOptions,
+): Promise<{ out: string; later?: string; problems: string[] }> {
   return withChrome(options.timeoutMs, async (browser) => {
     const page = await browser.page();
     await setViewport(page, options);
     await page.send("Emulation.setEmulatedMedia", {
-      features: [{ name: "prefers-color-scheme", value: options.dark ? "dark" : "light" }],
+      features: [
+        { name: "prefers-color-scheme", value: options.dark ? "dark" : "light" },
+        { name: "prefers-reduced-motion", value: options.reducedMotion ? "reduce" : "no-preference" },
+      ],
     });
     if (options.lang) await setLanguage(page, options.lang);
     await page.send("Page.navigate", { url: options.url });
@@ -60,7 +68,10 @@ export async function screenshot(options: ScreenshotOptions): Promise<{ out: str
     }
     if (options.waitAfter) await page.appears(options.waitAfter);
     const out = await capture(page, options.out);
-    return { out, problems: page.problems() };
+    if (options.laterMs === undefined) return { out, problems: page.problems() };
+    await sleep(options.laterMs);
+    const later = await capture(page, laterPath(options.out));
+    return { out, later, problems: page.problems() };
   });
 }
 

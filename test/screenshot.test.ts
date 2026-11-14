@@ -19,6 +19,8 @@ test("引数を既定値つきで読む", () => {
     height: 800,
     mobile: false,
     dark: false,
+    reducedMotion: false,
+    laterMs: undefined,
     lang: undefined,
     timeoutMs: 15_000,
   });
@@ -64,6 +66,7 @@ test("ページを撮り、撮る前に入力欄に値を入れて指定の要�
     height: 200,
     mobile: false,
     dark: false,
+    reducedMotion: false,
     timeoutMs: 15_000,
   });
   const png = await readFile(result.out);
@@ -91,6 +94,7 @@ test("--mobile では、スクロールバーが幅を取らず、タッチの�
       height: 844,
       mobile,
       dark: false,
+      reducedMotion: false,
       timeoutMs: 15_000,
     });
 
@@ -120,10 +124,44 @@ test("--dark では、prefers-color-scheme を dark にして描く", {
       height: 200,
       mobile: false,
       dark,
+      reducedMotion: false,
       timeoutMs: 15_000,
     });
   assert.deepEqual((await shoot(false)).problems, ["console.error: false"]);
   assert.deepEqual((await shoot(true)).problems, ["console.error: true"]);
+});
+
+test("--reduced-motion では動きを止める設定で描き、--later では待ってからもう 1 枚撮る", {
+  skip: !chromeInstalled && "Chrome がない",
+}, async (t) => {
+  // 撮るたびに画面の数が増え、1 枚目と 2 枚目で中身が違う
+  const html = [
+    "<p id=n>0</p>",
+    "<script>console.error(matchMedia('(prefers-reduced-motion: reduce)').matches);",
+    "setInterval(() => { n.textContent = Number(n.textContent) + 1 }, 100)</script>",
+  ].join("");
+  const dir = await mkdtemp(join(tmpdir(), "nagaya-verify-test-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const shoot = (reducedMotion: boolean, laterMs?: number) =>
+    screenshot({
+      url: `data:text/html,${encodeURIComponent(html)}`,
+      out: join(dir, `${reducedMotion}.png`),
+      fill: [],
+      click: [],
+      width: 320,
+      height: 200,
+      mobile: false,
+      dark: false,
+      reducedMotion,
+      laterMs,
+      timeoutMs: 15_000,
+    });
+  assert.deepEqual((await shoot(false)).problems, ["console.error: false"]);
+  const result = await shoot(true, 500);
+  assert.deepEqual(result.problems, ["console.error: true"]);
+  assert.equal(result.later, join(dir, "true-later.png"));
+  const [first, later] = await Promise.all([readFile(result.out), readFile(join(dir, "true-later.png"))]);
+  assert.notDeepEqual(first, later);
 });
 
 test("--lang では、ブラウザの言語と Intl の既定をその言語にして描く", {
@@ -143,6 +181,7 @@ test("--lang では、ブラウザの言語と Intl の既定をその言語に�
       height: 200,
       mobile: false,
       dark: false,
+      reducedMotion: false,
       lang,
       timeoutMs: 15_000,
     });
