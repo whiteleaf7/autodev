@@ -101,8 +101,11 @@ async function main(): Promise<boolean> {
       const shown = await readShown();
       const sessionId = /[0-9a-f]{8}-[0-9a-f-]{27}/.exec(await nagaya("list"))?.[0] ?? "";
       check(
-        "承認の要求で、Service Worker が「セッションの名前・承認待ち」の通知を出す",
-        shown.length === 1 && shown[0]?.body === "承認待ち" && shown[0].title === "work" && shown[0].tag === sessionId,
+        "承認の要求で、Service Worker が「セッションの名前・Needs approval」の通知を出す",
+        shown.length === 1 &&
+          shown[0]?.body === "Needs approval" &&
+          shown[0].title === "work" &&
+          shown[0].tag === sessionId,
         JSON.stringify(shown),
       );
 
