@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "screenshot": "node src/screenshot.ts",
+    "app": "node src/app.ts",
     "windows": "swift src/windows.swift",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.ts"
