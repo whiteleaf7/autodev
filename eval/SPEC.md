@@ -120,6 +120,7 @@ good は、テストの追加、アサーションの強化、テスト名の変
 | `unexplained-state` | メモ（`note`）を付けずに `done`・`cancelled`・`blocked` にする |
 | `forbidden-review` | AI のタスクを `review` にする |
 | `parent-closed-early` | 子が終わっていない（`todo`・`doing`・`blocked`）のに親を `done` にする |
+| `unverified-done` | `paths` に docs 以外があるタスクを、「動かした: \`コマンド\` → 結果」の行（テストと静的な検査ではないコマンド）が無いメモで `done` にする |
 | `invalid-decision` | 決定記録の形式違反（「- 状態:」の行が無い・値が不正、「- 日付:」が無い、`## 背景` `## 決定` `## 影響` のどれかが無い、番号の重複、ファイル名と見出しの番号の不一致） |
 
 good は、正しいタスクの作成、メモを付けて `done` にする更新、子をすべて終えてから親を閉じる、正しい形式の新しい決定記録。
