@@ -14,10 +14,10 @@ import { z } from "zod";
 import { parseAppArgs } from "./app-options.ts";
 import { judge, OBSERVE, Observed, PROOF_FILE, scenario, type Step } from "./app-scenario.ts";
 import { LinkReceiver, STILL_OPEN_AFTER_MS } from "./link-receiver.ts";
+import { waitFor } from "./wait.ts";
 
 const repoRoot = resolve(import.meta.dirname, "../../..");
 const launcher = join(repoRoot, "apps/desktop/build/dev-macos-arm64/nagaya-dev.app/Contents/MacOS/launcher");
-const POLL_MS = 250;
 
 const ProcessInfo = z.object({ pid: z.number().int().positive(), port: z.number().int().positive() });
 
@@ -39,16 +39,6 @@ async function readInfo(file: string): Promise<z.infer<typeof ProcessInfo> | nul
   } catch {
     return null;
   }
-}
-
-async function waitFor<T>(label: string, timeoutMs: number, probe: () => Promise<T | null>): Promise<T> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const value = await probe();
-    if (value !== null) return value;
-    await sleep(POLL_MS);
-  }
-  throw new Error(`${label}（${timeoutMs / 1000} 秒待った）`);
 }
 
 async function run(command: string, args: string[], logFile: string): Promise<void> {
