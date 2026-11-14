@@ -19,6 +19,7 @@ test("引数を既定値つきで読む", () => {
     height: 800,
     mobile: false,
     dark: false,
+    lang: undefined,
     timeoutMs: 15_000,
   });
 });
@@ -123,4 +124,28 @@ test("--dark では、prefers-color-scheme を dark にして描く", {
     });
   assert.deepEqual((await shoot(false)).problems, ["console.error: false"]);
   assert.deepEqual((await shoot(true)).problems, ["console.error: true"]);
+});
+
+test("--lang では、ブラウザの言語と Intl の既定をその言語にして描く", {
+  skip: !chromeInstalled && "Chrome がない",
+}, async (t) => {
+  const html =
+    "<script>console.error(navigator.languages.join(), new Intl.NumberFormat().resolvedOptions().locale)</script>";
+  const dir = await mkdtemp(join(tmpdir(), "nagaya-verify-test-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const shoot = (lang: string) =>
+    screenshot({
+      url: `data:text/html,${encodeURIComponent(html)}`,
+      out: join(dir, `${lang}.png`),
+      fill: [],
+      click: [],
+      width: 320,
+      height: 200,
+      mobile: false,
+      dark: false,
+      lang,
+      timeoutMs: 15_000,
+    });
+  assert.deepEqual((await shoot("ja")).problems, ["console.error: ja ja"]);
+  assert.deepEqual((await shoot("en-US")).problems, ["console.error: en-US en-US"]);
 });

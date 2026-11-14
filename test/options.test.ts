@@ -14,6 +14,7 @@ test("省略した引数は既定値になり、渡した値は数として読�
     height: 800,
     mobile: false,
     dark: false,
+    lang: undefined,
     timeoutMs: 15_000,
   });
   assert.deepEqual(
@@ -37,6 +38,8 @@ test("省略した引数は既定値になり、渡した値は数として読�
       "--wait-after",
       "#done",
       "--dark",
+      "--lang",
+      "ja",
     ]),
     {
       url: "https://example.com/a",
@@ -49,6 +52,7 @@ test("省略した引数は既定値になり、渡した値は数として読�
       height: 200,
       mobile: false,
       dark: true,
+      lang: "ja",
       timeoutMs: 500,
     },
   );
@@ -77,6 +81,7 @@ test("足りない・不正な引数は、使い方を添えて断る", () => {
   rejects(["not a url", "out.png"], /url/);
   rejects(["http://127.0.0.1/", "out.jpg"], /\.png/);
   rejects(["http://127.0.0.1/", "out.png", "--width", "0"], /width/);
+  rejects(["http://127.0.0.1/", "out.png", "--lang", "日本語"], /--lang/);
   rejects(["http://127.0.0.1/", "out.png", "--height=-1"], /height/);
   rejects(["http://127.0.0.1/", "out.png", "--timeout", "1.5"], /timeoutMs/);
   rejects(["http://127.0.0.1/", "out.png", "--width", "wide"], /width/);

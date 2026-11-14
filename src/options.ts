@@ -31,6 +31,17 @@ const ScreenshotOptions = z
     mobile: z.boolean().default(false),
     // prefers-color-scheme を dark にして撮る（省くと light）
     dark: z.boolean().default(false),
+    // ブラウザの言語（navigator.languages と Intl）を、この言語タグにして撮る（省くと Chrome のまま）
+    lang: z
+      .string()
+      .refine((tag) => {
+        try {
+          return Intl.getCanonicalLocales(tag).length === 1;
+        } catch {
+          return false;
+        }
+      }, "--lang は ja や en-US のような言語タグにする")
+      .optional(),
     timeoutMs: z.coerce.number().int().positive().default(15_000),
   })
   .transform((options) => {
@@ -40,7 +51,7 @@ const ScreenshotOptions = z
 export type ScreenshotOptions = z.infer<typeof ScreenshotOptions>;
 
 export const usage =
-  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--fill <CSS セレクタ>=<値>]... [--click <CSS セレクタ>]... [--wait-after <CSS セレクタ>] [--width 1280] [--height 800] [--mobile] [--dark] [--timeout 15000]";
+  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--fill <CSS セレクタ>=<値>]... [--click <CSS セレクタ>]... [--wait-after <CSS セレクタ>] [--width 1280] [--height 800] [--mobile] [--dark] [--lang ja] [--timeout 15000]";
 
 export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
   const { positionals, values } = parseArgs({
@@ -55,6 +66,7 @@ export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
       height: { type: "string" },
       mobile: { type: "boolean" },
       dark: { type: "boolean" },
+      lang: { type: "string" },
       timeout: { type: "string" },
     },
   });
@@ -69,6 +81,7 @@ export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
     height: values.height,
     mobile: values.mobile,
     dark: values.dark,
+    lang: values.lang,
     timeoutMs: values.timeout,
   });
   if (!parsed.success) {
