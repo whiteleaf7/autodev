@@ -10,12 +10,12 @@ export const PROOF_TEXT = "nagaya";
 // link を渡すと、返事にそのリンクを入れさせる（--open-link。殻で押して既定のブラウザで開くかを確かめる）
 export function prompt(link: string | null): string {
   return [
-    `Write ツールで、このディレクトリに ${PROOF_FILE} を作り、中身を「${PROOF_TEXT}」の 1 行だけにしてください。`,
-    "ほかのツールは使わないでください。",
+    `Use the Write tool to create ${PROOF_FILE} in this directory containing the single line "${PROOF_TEXT}".`,
+    "Do not use any other tools.",
     link === null
-      ? "終わったら「できました」とだけ答えてください。"
-      : `終わったら「できました」と、続けて Markdown のリンク [確認のリンク](${link}) を書き換えずにそのまま答えてください。`,
-  ].join("");
+      ? 'When you are done, reply with just "Done."'
+      : `When you are done, reply with "Done." followed by the Markdown link [verification link](${link}) exactly as written.`,
+  ].join(" ");
 }
 
 // 画面の中で動かす本文（async の関数の中身。値は return で返す）
@@ -62,20 +62,20 @@ export function scenario(cwd: string, link: string | null): Step[] {
       timeoutMs: 5_000,
     },
     {
-      name: "作業ディレクトリと指示を入れると「始める」が押せる",
+      name: "作業ディレクトリと指示を入れると「Start」が押せる",
       act: `${fill("form.new [name=cwd]", cwd)}\n${fill("form.new [name=prompt]", prompt(link))}`,
       until: exists(`${START}:not(:disabled)`),
       timeoutMs: 5_000,
     },
     {
-      name: "「始める」を押すと、Write の承認の要求が画面に出る",
+      name: "「Start」を押すと、Write の承認の要求が画面に出る",
       act: click(START),
       until: `return document.querySelector("${ALLOW}:not(:disabled)") !== null && document.querySelector(".permission")?.textContent?.includes("Write") === true;`,
       timeoutMs: 120_000,
       snapshot: "permission.png",
     },
     {
-      name: "「承認」を押すと、承認の要求が消える",
+      name: "「Allow」を押すと、承認の要求が消える",
       act: click(ALLOW),
       until: "return document.querySelector('.permission') === null;",
       timeoutMs: 15_000,

@@ -5,8 +5,8 @@ import { judge, type Observed, PROOF_FILE, PROOF_TEXT, prompt, scenario } from "
 
 const passing: Observed = {
   tools: [{ name: "Write", status: "done" }],
-  assistant: ["できました"],
-  turn: { text: "ターンが終わった・4.2 秒", isError: false },
+  assistant: ["Done."],
+  turn: { text: "Turn finished · 4.2s", isError: false },
   alerts: [],
   transcript: "",
 };
@@ -46,12 +46,12 @@ test("筋書きは作業ディレクトリを入れ、承認の前と終わり�
     steps.flatMap((step) => (step.snapshot ? [step.snapshot] : [])),
     ["permission.png", "turn-end.png"],
   );
-  assert.doesNotMatch(prompt(null), /リンク/);
+  assert.doesNotMatch(prompt(null), /link/);
 });
 
 test("リンクを渡すと、返事にそのリンクを入れさせ、ターンの後でそれを押す", () => {
   const link = "http://127.0.0.1:4321/nagaya-verify-link/abc";
-  assert.ok(prompt(link).includes(`[確認のリンク](${link})`));
+  assert.ok(prompt(link).includes(`[verification link](${link})`));
   const steps = scenario("/tmp/work", link);
   const afterTurn = steps.slice(steps.findIndex((step) => step.snapshot === "turn-end.png") + 1);
   assert.equal(afterTurn.length, 2);
