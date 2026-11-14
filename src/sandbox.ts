@@ -96,6 +96,9 @@ export function applyEdits(dir: string, edits: Edit[]): string | null {
 
 export type RunResult = { code: number; output: string };
 
+// 時間切れで止めたときの終了コード（timeout(1) に合わせる）
+export const TIMED_OUT = 124;
+
 export function run(
   command: string,
   args: string[],
@@ -133,10 +136,10 @@ export function run(
           // すでに終わっている
         }
       }
-      finish({ code: 124, output });
+      finish({ code: TIMED_OUT, output });
     }, timeoutMs);
     child.on("error", (e) => finish({ code: 127, output: e.message }));
-    child.on("close", (code) => finish({ code: code ?? 124, output }));
+    child.on("close", (code) => finish({ code: code ?? TIMED_OUT, output }));
   });
 }
 
