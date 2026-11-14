@@ -166,7 +166,7 @@ async function waitForCi(top: string, pr: string): Promise<void> {
 }
 
 // GitHub の rebase マージはコミットを作り直すので、ブランチを origin/main に合わせてから main を進める。
-// こうしておくと、pnpm worktree:prune が「取り込み済み」と判断し、git branch -d で消せる
+// こうしておくと、pnpm worktree:prune が「取り込み済み」と判断して消せる
 function syncMain(top: string, branch: string): void {
   // GitHub がマージしたブランチを消すので、残った追跡のブランチと upstream を外す。
   // upstream が残っていると、git branch -d が「upstream に取り込まれていない」と断る
