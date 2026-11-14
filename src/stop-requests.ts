@@ -1,9 +1,13 @@
 // AI の最後の返答から、AI が自分で確かめられることをユーザーに確かめさせている文を探す。
 // 返答の文字列だけで判断し、ファイルやプロセスには触らない（呼び出し側は stop-hook.ts）。
 
+// 「くれた」「いただきました」「もらえて」のように済んだことを述べる形は、頼みではなく報告（「作業者が確かめてくれた」）。「くれたら」は頼んでいる
+const DONE = String.raw`(?!い?た(?!ら)|い?て|[きけ]?まし|けた(?!ら))`;
+
 // 確かめる動詞のあとに、頼む言い方が続くもの（「ご確認のほど」はそれだけで頼んでいる）。「確認させてください」（AI が確かめる許しを求める）は当たらない
-const JA_REQUEST =
-  /(?:確認(?:を|して|してみて)?|確かめて(?:みて)?|試して(?:みて)?|動かして(?:みて)?|使って(?:みて)?|触って(?:みて)?|チェック(?:を|して)?|テスト(?:を|して)?|検証(?:を|して)?)(?:ください|下さい|お願い|いただ|頂|もらえ|もらいたい|ほしい|欲しい|くれ)|確認の?ほど/;
+const JA_REQUEST = new RegExp(
+  String.raw`(?:確認(?:を|して|してみて)?|確かめて(?:みて)?|試して(?:みて)?|動かして(?:みて)?|使って(?:みて)?|触って(?:みて)?|チェック(?:を|して)?|テスト(?:を|して)?|検証(?:を|して)?)(?:ください|下さい|お願い|(?:いただ|頂|もらえ|くれ)${DONE}|もらいたい|ほしい|欲しい)|確認の?ほど`,
+);
 const EN_REQUEST =
   /\b(?:please|could you|can you|would you|kindly)\s+(?:\w+\s+){0,2}?(?:verify|check|test|try|confirm|run)\b|\blet me know (?:if|whether|how) (?:it|this|that) (?:works|goes)\b/i;
 
@@ -14,20 +18,23 @@ const NEGATED = /(?:必要は?(?:ない|無い|ありません)|ません(?:で�
 const BEYOND_AI =
   /ログイン|ログアウト|サインイン|認証|パスワード|二段階|支払|課金|購入|契約|権限|許可|公開|リリース|\b(?:log ?in|sign ?in|password|2fa|payment|billing|permission|publish|release)\b/i;
 
-// 引用（「」や『』、コード、> の行）の中は、頼みではなく言及として扱う
-function withoutQuotes(text: string): string {
-  return text
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/`[^`\n]*`/g, "")
-    .replace(/「[^「」]*」|『[^『』]*』/g, "")
-    .replace(/^\s*>.*$/gm, "");
+// 引用（「」や『』、コード、> の行）の中は、頼みではなく言及として扱う。
+// 差し戻しの文には元の文をそのまま引くため、消さずに同じ長さの記号で塗りつぶして位置を保つ
+function maskQuotes(text: string): string {
+  return text.replace(/```[\s\S]*?```|`[^`\n]*`|「[^「」]*」|『[^『』]*』|^\s*>.*$/gm, (quote) =>
+    quote.replace(/[^\n]/g, "_"),
+  );
 }
 
-function sentences(text: string): string[] {
-  return text
-    .split(/(?<=[。！？!?])|\n|(?<=\.)\s+/)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean);
+function sentenceSpans(text: string): Array<{ start: number; end: number }> {
+  const spans = [];
+  let start = 0;
+  for (const boundary of text.matchAll(/(?<=[。！？!?])|\n|(?<=\.)\s+/g)) {
+    spans.push({ start, end: boundary.index });
+    start = boundary.index + boundary[0].length;
+  }
+  spans.push({ start, end: text.length });
+  return spans;
 }
 
 function asksToVerify(sentence: string): boolean {
@@ -38,7 +45,13 @@ function asksToVerify(sentence: string): boolean {
 }
 
 export function verificationRequests(reply: string): string[] {
-  return sentences(withoutQuotes(reply)).filter((sentence) => asksToVerify(sentence) && !BEYOND_AI.test(sentence));
+  const masked = maskQuotes(reply);
+  return sentenceSpans(masked)
+    .filter(({ start, end }) => {
+      const sentence = masked.slice(start, end);
+      return asksToVerify(sentence) && !BEYOND_AI.test(sentence);
+    })
+    .map(({ start, end }) => reply.slice(start, end).trim());
 }
 
 export function blockReason(requests: string[]): string {

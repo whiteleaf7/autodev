@@ -15,6 +15,9 @@ test("ユーザーに動作の確認を頼む返答を見つける（見逃し�
     "変更点は以上です。ご確認のほど、よろしくお願いします。",
     "お手すきのときに試してもらえませんか？",
     "念のため、実機で確認してもらえないでしょうか。",
+    "もう一度確かめてくれますか？",
+    "手が空いたら、確認していただきたいです。",
+    "画面で試していただけたら助かります。",
     "I've fixed the layout. Please verify it in the browser.",
     "Could you try running it again?",
     "Let me know if it works.",
@@ -46,6 +49,12 @@ test("頼んでいない文は通す（誤検出の例）", () => {
     "```\n確認してください\n```\nのような出力は出なくなった。",
     "詳しくは docs/verification.md を見てください。",
     "ダッシュボードは https://mac.example.ts.net:5173/ で開いてください。",
+    "作業者は held-out の中身を読まずに、ID と `paths` だけで確かめてくれたよ。",
+    "作業者が実機で確認してくれました。",
+    "レビューの作業者に試してもらった。",
+    "別のセッションに確認していただいたので、問題ない。",
+    "作業者に動かしてもらえたので、次に進む。",
+    "確かめてくれてありがとう。",
     "I checked it with the screenshot and it works.",
   ])
     assert.ok(!blocks(reply), reply);
@@ -54,6 +63,12 @@ test("頼んでいない文は通す（誤検出の例）", () => {
 test("頼んでいる文だけを返す", () => {
   assert.deepEqual(verificationRequests("テストは通りました。\nブラウザで動作確認をお願いします。"), [
     "ブラウザで動作確認をお願いします。",
+  ]);
+});
+
+test("頼んでいる文は、インラインコードを残したまま返す", () => {
+  assert.deepEqual(verificationRequests("`pnpm board` で、動作確認をお願いします。"), [
+    "`pnpm board` で、動作確認をお願いします。",
   ]);
 });
 
