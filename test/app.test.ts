@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseAppArgs } from "../src/app-options.ts";
-import { judge, type Observed, PROOF_FILE, PROOF_TEXT, scenario } from "../src/app-scenario.ts";
+import { judge, type Observed, PROOF_FILE, PROOF_TEXT, prompt, scenario } from "../src/app-scenario.ts";
 
 const passing: Observed = {
   tools: [{ name: "Write", status: "done" }],
@@ -38,20 +38,33 @@ test("画面に出ていないものと、書かれていないファイルを�
 });
 
 test("筋書きは作業ディレクトリを入れ、承認の前と終わりの画面を撮る", () => {
-  const steps = scenario("/tmp/work");
+  const steps = scenario("/tmp/work", null);
   assert.ok(steps.some((step) => step.act?.includes('"/tmp/work"')));
   assert.deepEqual(
     steps.flatMap((step) => (step.snapshot ? [step.snapshot] : [])),
     ["permission.png", "turn-end.png"],
   );
+  assert.doesNotMatch(prompt(null), /リンク/);
+});
+
+test("リンクを渡すと、返事にそのリンクを入れさせ、ターンの後でそれを押す", () => {
+  const link = "http://127.0.0.1:4321/nagaya-verify-link/abc";
+  assert.ok(prompt(link).includes(`[確認のリンク](${link})`));
+  const steps = scenario("/tmp/work", link);
+  const afterTurn = steps.slice(steps.findIndex((step) => step.snapshot === "turn-end.png") + 1);
+  assert.equal(afterTurn.length, 2);
+  assert.ok(afterTurn.every((step) => step.until?.includes(link)));
+  assert.ok(afterTurn[1]?.act?.includes(".click()"));
+  assert.equal(afterTurn[1]?.snapshot, "link-clicked.png");
 });
 
 test("既定はビルドし直して軽いモデルで動かし、知らない引数は使い方を添えて断る", () => {
-  assert.deepEqual(parseAppArgs([]), { build: true, model: "haiku", out: undefined });
-  assert.deepEqual(parseAppArgs(["--skip-build", "--model", "sonnet", "--out", ".dev/verify/x"]), {
+  assert.deepEqual(parseAppArgs([]), { build: true, model: "haiku", out: undefined, openLink: false });
+  assert.deepEqual(parseAppArgs(["--skip-build", "--model", "sonnet", "--out", ".dev/verify/x", "--open-link"]), {
     build: false,
     model: "sonnet",
     out: ".dev/verify/x",
+    openLink: true,
   });
   assert.throws(() => parseAppArgs(["--fast"]), /使い方: pnpm verify:app/);
 });

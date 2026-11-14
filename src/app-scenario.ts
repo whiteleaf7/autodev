@@ -7,10 +7,16 @@ import { z } from "zod";
 export const PROOF_FILE = "nagaya-verify.txt";
 export const PROOF_TEXT = "nagaya";
 
-export const PROMPT = [
-  `Write ツールで、このディレクトリに ${PROOF_FILE} を作り、中身を「${PROOF_TEXT}」の 1 行だけにしてください。`,
-  "ほかのツールは使わないでください。終わったら「できました」とだけ答えてください。",
-].join("");
+// link を渡すと、返事にそのリンクを入れさせる（--open-link。殻で押して既定のブラウザで開くかを確かめる）
+export function prompt(link: string | null): string {
+  return [
+    `Write ツールで、このディレクトリに ${PROOF_FILE} を作り、中身を「${PROOF_TEXT}」の 1 行だけにしてください。`,
+    "ほかのツールは使わないでください。",
+    link === null
+      ? "終わったら「できました」とだけ答えてください。"
+      : `終わったら「できました」と、続けて Markdown のリンク [確認のリンク](${link}) を書き換えずにそのまま答えてください。`,
+  ].join("");
+}
 
 // 画面の中で動かす本文（async の関数の中身。値は return で返す）
 export type Step = {
@@ -42,8 +48,8 @@ const exists = (selector: string) => `return document.querySelector(${JSON.strin
 const START = "form.new button[type=submit]";
 const ALLOW = ".permission button.allow";
 
-export function scenario(cwd: string): Step[] {
-  return [
+export function scenario(cwd: string, link: string | null): Step[] {
+  const steps: Step[] = [
     {
       name: "UI がデーモンにつながる",
       until: exists('.app[data-connection="connected"]'),
@@ -57,7 +63,7 @@ export function scenario(cwd: string): Step[] {
     },
     {
       name: "作業ディレクトリと指示を入れると「始める」が押せる",
-      act: `${fill("form.new [name=cwd]", cwd)}\n${fill("form.new [name=prompt]", PROMPT)}`,
+      act: `${fill("form.new [name=cwd]", cwd)}\n${fill("form.new [name=prompt]", prompt(link))}`,
       until: exists(`${START}:not(:disabled)`),
       timeoutMs: 5_000,
     },
@@ -75,6 +81,20 @@ export function scenario(cwd: string): Step[] {
       timeoutMs: 15_000,
     },
     { name: "ターンの終わりが画面に出る", until: exists(".entry.turn"), timeoutMs: 120_000, snapshot: "turn-end.png" },
+  ];
+  if (link === null) return steps;
+  const anchor = `.entry.assistant a[target=_blank][href=${JSON.stringify(link)}]`;
+  return [
+    ...steps,
+    { name: "返事に受け口へのリンクが出る", until: exists(anchor), timeoutMs: 5_000 },
+    {
+      // 既定のブラウザに渡ったかは、受け口に届いた要求で app.ts が確かめる
+      name: "リンクを押しても、殻の画面は会話のまま",
+      act: click(anchor),
+      until: `return location.hash.startsWith("#/sessions/") && document.querySelector(${JSON.stringify(anchor)}) !== null;`,
+      timeoutMs: 5_000,
+      snapshot: "link-clicked.png",
+    },
   ];
 }
 

@@ -13,6 +13,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { z } from "zod";
 import { parseAppArgs } from "./app-options.ts";
 import { judge, OBSERVE, Observed, PROOF_FILE, scenario, type Step } from "./app-scenario.ts";
+import { LinkReceiver, STILL_OPEN_AFTER_MS } from "./link-receiver.ts";
 
 const repoRoot = resolve(import.meta.dirname, "../../..");
 const launcher = join(repoRoot, "apps/desktop/build/dev-macos-arm64/nagaya-dev.app/Contents/MacOS/launcher");
@@ -100,6 +101,20 @@ async function runStep(shell: Shell, step: Step, out: string): Promise<StepResul
   return { name: step.name, ok: true, ms: Date.now() - started, snapshot: step.snapshot };
 }
 
+const ARRIVAL_STEP = "既定のブラウザが開き、受け口に要求が届く";
+
+async function waitForArrival(receiver: LinkReceiver): Promise<StepResult> {
+  const started = Date.now();
+  await waitFor(
+    "受け口に要求が届かない。shell.log の「既定のアプリで開く」を見る",
+    15_000,
+    async () => receiver.arrival,
+  );
+  // 開いたページが自分を閉じられたかは、閉じられなかったときに届く要求で分かる
+  await sleep(STILL_OPEN_AFTER_MS + 1_500);
+  return { name: ARRIVAL_STEP, ok: true, ms: Date.now() - started };
+}
+
 function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -136,6 +151,7 @@ async function main(): Promise<boolean> {
   let shellProcess: ChildProcess | null = null;
   let observed: Observed | null = null;
   let problems: string[] = [];
+  const receiver = options.openLink ? await LinkReceiver.start() : null;
   try {
     const shellLog = createWriteStream(join(out, "shell.log"));
     const child = spawn(launcher, [], {
@@ -153,10 +169,15 @@ async function main(): Promise<boolean> {
     });
     const shell = new Shell(control.port, (await readFile(join(home, "token"), "utf8")).trim());
 
-    for (const step of scenario(cwd)) {
+    const runners = scenario(cwd, receiver?.url ?? null).map((step) => ({
+      name: step.name,
+      run: () => runStep(shell, step, out),
+    }));
+    if (receiver) runners.push({ name: ARRIVAL_STEP, run: () => waitForArrival(receiver) });
+    for (const runner of runners) {
       const started = Date.now();
       try {
-        results.push(await runStep(shell, step, out));
+        results.push(await runner.run());
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const snapshotFailure = await shell.snapshot(join(out, "failure.png")).then(
@@ -164,7 +185,7 @@ async function main(): Promise<boolean> {
           (snapshotError: unknown) => `。画面も撮れなかった: ${String(snapshotError)}`,
         );
         results.push({
-          name: step.name,
+          name: runner.name,
           ok: false,
           ms: Date.now() - started,
           error: `${message}${snapshotFailure ?? ""}`,
@@ -180,6 +201,7 @@ async function main(): Promise<boolean> {
       problems = judge(observed, proof);
     }
   } finally {
+    await receiver?.close();
     if (shellProcess?.pid) await stopProcess(shellProcess.pid);
     const shellBun = await readInfo(join(home, "shell.json"));
     if (shellBun) await stopProcess(shellBun.pid);
@@ -194,9 +216,10 @@ async function main(): Promise<boolean> {
 
   const failed = results.find((result) => !result.ok);
   const ok = failed === undefined && problems.length === 0;
+  const link = receiver && { url: receiver.url, arrival: receiver.arrival, tabStayedOpen: receiver.tabStayedOpen };
   await writeFile(
     join(out, "result.json"),
-    `${JSON.stringify({ ok, model: options.model, steps: results, problems, observed }, null, 2)}\n`,
+    `${JSON.stringify({ ok, model: options.model, steps: results, problems, link, observed }, null, 2)}\n`,
   );
 
   for (const result of results) {
@@ -207,6 +230,10 @@ async function main(): Promise<boolean> {
     if (result.error) console.log(`     ${result.error}`);
   }
   for (const problem of problems) console.log(`失敗 ${problem}`);
+  if (link?.arrival) {
+    const tab = link.tabStayedOpen ? "タブは自分を閉じられず残った" : "タブが残った知らせは来なかった（閉じたと見る）";
+    console.log(`     受け口に届いた: ${link.arrival.at}、User-Agent: ${link.arrival.userAgent ?? "無し"}。${tab}`);
+  }
   console.log(
     `${ok ? "通った" : "通らなかった"}: 画面・会話・ログは ${relative(repoRoot, out)}/（result.json に要点）`,
   );
