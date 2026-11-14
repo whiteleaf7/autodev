@@ -167,15 +167,18 @@ function checkDoc(file: string, text: string, facts: Facts): Problem[] {
     if (!(historical && check === "missing-path")) problems.push({ check, file, line, message });
   };
 
+  const lines = text.split("\n");
   for (const { text: snippet, line } of codeSnippets(text)) {
     for (const m of snippet.matchAll(/(?<![\w-])pnpm\s+([^|;&`]+)/g)) {
       const missing = missingScript(m[1]!, facts);
       if (missing) add("missing-script", line, missing);
     }
+    // 「（未作成）」と書いた行のパスは、予定として書かれている
+    const planned = lines[line - 1]?.includes("（未作成）") ?? false;
     for (const token of snippet.split(/\s+/).map(clean)) {
       const path = REPO_PATH.exec(token.replace(/(:\d+(-\d+)?|#L\d+)$/, ""))?.[1];
-      if (!path || PLACEHOLDER.test(path) || facts.ignored(path)) continue;
-      // まだ作っていない最上位のディレクトリ（apps/ など）は、予定として書かれている
+      if (!path || planned || PLACEHOLDER.test(path) || facts.ignored(path)) continue;
+      // まだ作っていない最上位のディレクトリ（apps/ など）も、予定として書かれている
       if (facts.exists(path.split("/")[0]!) && !facts.exists(path)) add("missing-path", line, `${path} が存在しない`);
     }
     const tool = TOOL_NAME.exec(snippet.trim())?.[1];

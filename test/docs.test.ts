@@ -48,6 +48,11 @@ test("無いパスへの言及を見つける", () => {
     [],
     "無視されるパス、例示、これから作るディレクトリは通す",
   );
+  assert.deepEqual(
+    checksOf("```\ntools/missing/   予定の道具（未作成）\n```\n`tools/later/` を足す（未作成）\n"),
+    [],
+    "（未作成）と書いた行のパスは、予定として通す",
+  );
   const decision =
     "# 0009. 昔の決定\n\n- 状態: 置き換え\n\nボードは `docs/products.md` に置いていた（[当時](docs/products.md)）\n";
   assert.deepEqual(
