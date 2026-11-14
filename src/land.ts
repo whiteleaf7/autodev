@@ -1,5 +1,5 @@
 // ブランチを、PR を通して main に 1 件ずつ取り込む（決定記録 0010、0015）。main 以外のブランチの上で `pnpm land` を実行する。
-// 取り込みのロックを取り、origin/main に rebase し、その結果でゲート（pnpm check）を通し、ブランチを push して draft の PR を作る。
+// 取り込みのロックを取り、origin/main に rebase して依存を入れ直し、その結果でゲート（pnpm check）を通し、ブランチを push して draft の PR を作る。
 // CI が通ったら PR を ready にして rebase でマージし、ローカルの main を origin/main に進める。
 // main は、ローカルのゲートと CI を通った状態でしか進まない。フックの設定に頼らずゲートを通すので、core.hooksPath が書き換えられても効く。
 
@@ -96,6 +96,20 @@ function rebase(top: string, onto: string): void {
     `${onto} への rebase が衝突した（${conflicts.split("\n").join(", ") || "ファイル不明"}）。取り込みはしていない。` +
       `この worktree で git rebase ${onto} を実行して衝突を解消し、もう一度 pnpm land を実行する`,
   );
+}
+
+// rebase で main から新しい workspace のパッケージや依存が入ると、着手のときに作った node_modules では足りず、ゲートが落ちる（L-020）
+function install(top: string): void {
+  const { status } = spawnSync("pnpm", ["install", "--frozen-lockfile", "--offline"], {
+    cwd: top,
+    stdio: "inherit",
+    env: withoutGitEnv(process.env),
+  });
+  if (status !== 0)
+    throw new LandError(
+      "rebase のあとの pnpm install --frozen-lockfile --offline が通らなかった。取り込みはしていない。" +
+        "新しい依存がストアに無いときは、この worktree で pnpm install --frozen-lockfile を実行してから、もう一度 pnpm land を実行する",
+    );
 }
 
 function gate(top: string): void {
@@ -201,6 +215,7 @@ async function land(): Promise<void> {
     if (gitOut(top, ["rev-list", "--count", `${UPSTREAM}..${branch}`]) === "0")
       throw new LandError(`${UPSTREAM} に無いコミットが無い`);
     rebase(top, UPSTREAM);
+    install(top);
     gate(top);
     // rebase で作り直したブランチを上書きする。main ではないので、force push の禁止には当たらない
     gitOut(top, ["push", "-q", "--force-with-lease", "-u", REMOTE, branch]);
