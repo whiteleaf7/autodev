@@ -139,11 +139,20 @@ export async function screenshot(options: ScreenshotOptions): Promise<{ out: str
           `${selector} が出ない`,
         );
       if (options.waitFor) await appears(options.waitFor);
+      for (const { selector, value } of options.fill) {
+        await appears(selector);
+        // Preact などは input のイベントで値を読むので、値を入れてからイベントを送る
+        await evaluate(
+          `{ const el = document.querySelector(${JSON.stringify(selector)}); el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event("input", { bubbles: true })); }`,
+        );
+        await sleep(200);
+      }
       for (const selector of options.click) {
         await appears(selector);
         await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
         await sleep(200);
       }
+      if (options.waitAfter) await appears(options.waitAfter);
       // 描画が落ち着くのを待つ
       await sleep(200);
       const { data } = await page<{ data: string }>("Page.captureScreenshot", { format: "png" });

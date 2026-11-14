@@ -12,7 +12,9 @@ test("引数を既定値つきで読む", () => {
     url: "http://127.0.0.1:4848/",
     out: "out.png",
     waitFor: ".card",
+    fill: [],
     click: [],
+    waitAfter: undefined,
     width: 1280,
     height: 800,
     timeoutMs: 15_000,
@@ -37,16 +39,22 @@ const chromeInstalled = existsSync(
   process.env.NAGAYA_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 );
 
-test("ページを撮り、撮る前に指定の要素をクリックし、コンソールのエラーも返す", {
+test("ページを撮り、撮る前に入力欄に値を入れて指定の要素をクリックし、コンソールのエラーも返す", {
   skip: !chromeInstalled && "Chrome がない",
 }, async () => {
-  const html = `<p id="ready">hi</p><button id="b" onclick="console.error('clicked')">b</button><script>console.error("boom")</script>`;
+  const html = [
+    '<p id="ready">hi</p><input id="code" oninput="window.typed = this.value">',
+    `<button id="b" onclick="console.error('clicked ' + window.typed); document.body.append(Object.assign(document.createElement('p'), { id: 'done' }))">b</button>`,
+    '<script>console.error("boom")</script>',
+  ].join("");
   const out = join(await mkdtemp(join(tmpdir(), "nagaya-verify-test-")), "page.png");
   const result = await screenshot({
     url: `data:text/html,${encodeURIComponent(html)}`,
     out,
     waitFor: "#ready",
+    fill: [{ selector: "#code", value: "ABCD" }],
     click: ["#b"],
+    waitAfter: "#done",
     width: 320,
     height: 200,
     timeoutMs: 15_000,
@@ -54,5 +62,5 @@ test("ページを撮り、撮る前に指定の要素をクリックし、コ�
   const png = await readFile(result.out);
   assert.equal(png.subarray(1, 4).toString(), "PNG");
   assert.equal(png.readUInt32BE(16), 320);
-  assert.deepEqual(result.problems, ["console.error: boom", "console.error: clicked"]);
+  assert.deepEqual(result.problems, ["console.error: boom", "console.error: clicked ABCD"]);
 });

@@ -7,7 +7,9 @@ test("省略した引数は既定値になり、渡した値は数として読�
     url: "http://127.0.0.1:4848/",
     out: "out.png",
     waitFor: undefined,
+    fill: [],
     click: [],
+    waitAfter: undefined,
     width: 1280,
     height: 800,
     timeoutMs: 15_000,
@@ -28,12 +30,18 @@ test("省略した引数は既定値になり、渡した値は数として読�
       ".card",
       "--click",
       "#edit",
+      "--fill",
+      "input[name=code]=ABCD-EFGH",
+      "--wait-after",
+      "#done",
     ]),
     {
       url: "https://example.com/a",
       out: "dir/shot.png",
       waitFor: "#ready",
+      fill: [{ selector: "input[name=code]", value: "ABCD-EFGH" }],
       click: [".card", "#edit"],
+      waitAfter: "#done",
       width: 320,
       height: 200,
       timeoutMs: 500,
@@ -57,6 +65,7 @@ test("足りない・不正な引数は、使い方を添えて断る", () => {
   rejects(["http://127.0.0.1/", "out.png", "--timeout", "1.5"], /timeoutMs/);
   rejects(["http://127.0.0.1/", "out.png", "--width", "wide"], /width/);
   rejects(["http://127.0.0.1/", "out.png", "--wait-for", ""], /waitFor/);
+  rejects(["http://127.0.0.1/", "out.png", "--fill", "#code"], /--fill は/);
   assert.throws(() => parseScreenshotArgs(["http://127.0.0.1/", "out.png", "--unknown", "1"]));
 });
 

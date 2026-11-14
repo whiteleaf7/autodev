@@ -5,8 +5,23 @@ const ScreenshotOptions = z.object({
   url: z.url(),
   out: z.string().endsWith(".png", "出力先は .png にする"),
   waitFor: z.string().min(1).optional(),
+  // クリックの前に、入力欄に値を入れる（<CSS セレクタ>=<値>）。登録のコードを打つなど。
+  // セレクタには [name=code] のように = が入るので、最後の = で分ける（値に = は使えない）
+  fill: z
+    .array(
+      z
+        .string()
+        .regex(/^.+=[^=]*$/, "--fill は <CSS セレクタ>=<値> にする")
+        .transform((pair) => ({
+          selector: pair.slice(0, pair.lastIndexOf("=")),
+          value: pair.slice(pair.lastIndexOf("=") + 1),
+        })),
+    )
+    .default([]),
   // 撮る前に、この順にクリックする要素（モーダルを開くなど）
   click: z.array(z.string().min(1)).default([]),
+  // クリックの後、撮る前に出るのを待つ要素
+  waitAfter: z.string().min(1).optional(),
   width: z.coerce.number().int().positive().default(1280),
   height: z.coerce.number().int().positive().default(800),
   timeoutMs: z.coerce.number().int().positive().default(15_000),
@@ -14,7 +29,7 @@ const ScreenshotOptions = z.object({
 export type ScreenshotOptions = z.infer<typeof ScreenshotOptions>;
 
 export const usage =
-  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--click <CSS セレクタ>]... [--width 1280] [--height 800] [--timeout 15000]";
+  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--fill <CSS セレクタ>=<値>]... [--click <CSS セレクタ>]... [--wait-after <CSS セレクタ>] [--width 1280] [--height 800] [--timeout 15000]";
 
 export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
   const { positionals, values } = parseArgs({
@@ -22,7 +37,9 @@ export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
     allowPositionals: true,
     options: {
       "wait-for": { type: "string" },
+      fill: { type: "string", multiple: true },
       click: { type: "string", multiple: true },
+      "wait-after": { type: "string" },
       width: { type: "string" },
       height: { type: "string" },
       timeout: { type: "string" },
@@ -32,7 +49,9 @@ export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
     url: positionals[0],
     out: positionals[1],
     waitFor: values["wait-for"],
+    fill: values.fill,
     click: values.click,
+    waitAfter: values["wait-after"],
     width: values.width,
     height: values.height,
     timeoutMs: values.timeout,
