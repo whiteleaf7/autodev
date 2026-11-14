@@ -5,7 +5,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
 import { createWriteStream, existsSync } from "node:fs";
-import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
@@ -18,6 +18,29 @@ import { waitFor } from "./wait.ts";
 
 const repoRoot = resolve(import.meta.dirname, "../../..");
 const launcher = join(repoRoot, "apps/desktop/build/dev-macos-arm64/nagaya-dev.app/Contents/MacOS/launcher");
+
+const PluginManifest = z.object({ id: z.string().min(1) });
+
+// 外のプラグインを使い捨ての NAGAYA_HOME に置き、渡した順に有効にする（決定記録 0034 の置き場所と plugins.json）。ID を返す
+async function placePlugins(home: string, dirs: readonly string[]): Promise<string[]> {
+  const ids: string[] = [];
+  await mkdir(join(home, "plugins"), { recursive: true });
+  for (const given of dirs) {
+    const dir = resolve(repoRoot, given);
+    const manifest = join(dir, "nagaya-plugin.json");
+    const { id } = PluginManifest.parse(
+      JSON.parse(
+        await readFile(manifest, "utf8").catch(() => {
+          throw new Error(`${manifest} が無い。--plugin にはプラグインのディレクトリを渡す`);
+        }),
+      ),
+    );
+    await symlink(dir, join(home, "plugins", id));
+    ids.push(id);
+  }
+  await writeFile(join(home, "plugins.json"), `${JSON.stringify({ enabled: ids })}\n`);
+  return ids;
+}
 
 const ProcessInfo = z.object({ pid: z.number().int().positive(), port: z.number().int().positive() });
 
@@ -143,6 +166,7 @@ async function main(): Promise<boolean> {
   let problems: string[] = [];
   const receiver = options.openLink ? await LinkReceiver.start() : null;
   try {
+    const plugins = await placePlugins(home, options.plugins);
     const shellLog = createWriteStream(join(out, "shell.log"));
     const child = spawn(launcher, [], {
       env: { ...process.env, NAGAYA_HOME: home, NAGAYA_PORT: String(await freePort()), ANTHROPIC_MODEL: options.model },
@@ -159,7 +183,7 @@ async function main(): Promise<boolean> {
     });
     const shell = new Shell(control.port, (await readFile(join(home, "token"), "utf8")).trim());
 
-    const runners = scenario(cwd, receiver?.url ?? null).map((step) => ({
+    const runners = scenario(cwd, receiver?.url ?? null, plugins).map((step) => ({
       name: step.name,
       run: () => runStep(shell, step, out),
     }));
@@ -209,7 +233,7 @@ async function main(): Promise<boolean> {
   const link = receiver && { url: receiver.url, arrival: receiver.arrival, tabStayedOpen: receiver.tabStayedOpen };
   await writeFile(
     join(out, "result.json"),
-    `${JSON.stringify({ ok, model: options.model, steps: results, problems, link, observed }, null, 2)}\n`,
+    `${JSON.stringify({ ok, model: options.model, plugins: options.plugins, steps: results, problems, link, observed }, null, 2)}\n`,
   );
 
   for (const result of results) {

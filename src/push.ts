@@ -70,7 +70,7 @@ async function main(): Promise<boolean> {
       await browser.grant(origin, ["notifications"]);
       const page = await browser.page();
       await setViewport(page, { width: 390, height: 844, mobile: false });
-      await page.send("Page.navigate", { url: `${origin}/?code=${code}#/devices` });
+      await page.send("Page.navigate", { url: `${origin}/?code=${code}#/settings` });
       await page.appears('.app[data-connection="connected"]');
       await page.appears('.push[data-push="false"]');
       await page.evaluate(`document.querySelector(".push-toggle").click()`);

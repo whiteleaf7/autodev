@@ -48,13 +48,26 @@ const exists = (selector: string) => `return document.querySelector(${JSON.strin
 const START = "form.new button[type=submit]";
 const ALLOW = ".permission button.allow";
 
-export function scenario(cwd: string, link: string | null): Step[] {
+// plugins は、有効にして起動した外のプラグインの ID。設定の画面で、すべて読まれて登録できたことを確かめる
+export function scenario(cwd: string, link: string | null, plugins: readonly string[]): Step[] {
+  const loaded = plugins.map((id) => `.plugin[data-plugin=${JSON.stringify(id)}][data-status="on"]`);
   const steps: Step[] = [
     {
       name: "UI がデーモンにつながる",
       until: exists('.app[data-connection="connected"]'),
       timeoutMs: 30_000,
     },
+    ...(plugins.length === 0
+      ? []
+      : [
+          {
+            name: "有効にしたプラグインが、設定の画面ですべて読まれている",
+            act: 'location.hash = "#/settings";',
+            until: `return ${JSON.stringify(loaded)}.every((selector) => document.querySelector(selector) !== null);`,
+            timeoutMs: 10_000,
+            snapshot: "plugins.png",
+          },
+        ]),
     {
       name: "新しいセッションの画面が開く",
       act: 'location.hash = "#/new";',

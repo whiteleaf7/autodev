@@ -40,7 +40,7 @@ test("画面に出ていないものと、書かれていないファイルを�
 });
 
 test("筋書きは作業ディレクトリを入れ、承認の前と終わりの画面を撮る", () => {
-  const steps = scenario("/tmp/work", null);
+  const steps = scenario("/tmp/work", null, []);
   assert.ok(steps.some((step) => step.act?.includes('"/tmp/work"')));
   assert.deepEqual(
     steps.flatMap((step) => (step.snapshot ? [step.snapshot] : [])),
@@ -49,10 +49,19 @@ test("筋書きは作業ディレクトリを入れ、承認の前と終わり�
   assert.doesNotMatch(prompt(null), /link/);
 });
 
+test("プラグインを渡すと、つながった後に設定の画面ですべて読まれたことを確かめて撮ってから進める", () => {
+  const steps = scenario("/tmp/work", null, ["flat-sidebar", "session-age"]);
+  const check = steps[1];
+  assert.equal(check?.act, 'location.hash = "#/settings";');
+  assert.ok(check?.until?.includes('.plugin[data-plugin=\\"flat-sidebar\\"][data-status=\\"on\\"]'));
+  assert.equal(check?.snapshot, "plugins.png");
+  assert.equal(steps[2]?.act, 'location.hash = "#/new";');
+});
+
 test("リンクを渡すと、返事にそのリンクを入れさせ、ターンの後でそれを押す", () => {
   const link = "http://127.0.0.1:4321/nagaya-verify-link/abc";
   assert.ok(prompt(link).includes(`[verification link](${link})`));
-  const steps = scenario("/tmp/work", link);
+  const steps = scenario("/tmp/work", link, []);
   const afterTurn = steps.slice(steps.findIndex((step) => step.snapshot === "turn-end.png") + 1);
   assert.equal(afterTurn.length, 2);
   assert.ok(afterTurn.every((step) => step.until?.includes(link)));
@@ -61,12 +70,21 @@ test("リンクを渡すと、返事にそのリンクを入れさせ、ター�
 });
 
 test("既定はビルドし直して軽いモデルで動かし、知らない引数は使い方を添えて断る", () => {
-  assert.deepEqual(parseAppArgs([]), { build: true, model: "haiku", out: undefined, openLink: false });
-  assert.deepEqual(parseAppArgs(["--skip-build", "--model", "sonnet", "--out", ".dev/verify/x", "--open-link"]), {
-    build: false,
-    model: "sonnet",
-    out: ".dev/verify/x",
-    openLink: true,
-  });
+  assert.deepEqual(parseAppArgs([]), { build: true, model: "haiku", out: undefined, openLink: false, plugins: [] });
+  assert.deepEqual(
+    parseAppArgs([
+      "--skip-build",
+      "--model",
+      "sonnet",
+      "--out",
+      ".dev/verify/x",
+      "--open-link",
+      "--plugin",
+      "a",
+      "--plugin",
+      "b",
+    ]),
+    { build: false, model: "sonnet", out: ".dev/verify/x", openLink: true, plugins: ["a", "b"] },
+  );
   assert.throws(() => parseAppArgs(["--fast"]), /使い方: pnpm verify:app/);
 });
