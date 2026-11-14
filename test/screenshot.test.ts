@@ -17,6 +17,7 @@ test("引数を既定値つきで読む", () => {
     waitAfter: undefined,
     width: 1280,
     height: 800,
+    mobile: false,
     timeoutMs: 15_000,
   });
 });
@@ -59,10 +60,42 @@ test("ページを撮り、撮る前に入力欄に値を入れて指定の要�
     waitAfter: "#done",
     width: 320,
     height: 200,
+    mobile: false,
     timeoutMs: 15_000,
   });
   const png = await readFile(result.out);
   assert.equal(png.subarray(1, 4).toString(), "PNG");
   assert.equal(png.readUInt32BE(16), 320);
   assert.deepEqual(result.problems, ["console.error: boom", "console.error: clicked ABCD"]);
+});
+
+test("--mobile では、スクロールバーが幅を取らず、タッチの端末として 2 倍の解像度で撮る", {
+  skip: !chromeInstalled && "Chrome がない",
+}, async (t) => {
+  const html = [
+    '<meta name="viewport" content="width=device-width"><div style="height:3000px"></div>',
+    "<script>console.error(document.documentElement.clientWidth, matchMedia('(pointer: coarse)').matches)</script>",
+  ].join("");
+  const dir = await mkdtemp(join(tmpdir(), "nagaya-verify-test-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const shoot = (mobile: boolean) =>
+    screenshot({
+      url: `data:text/html,${encodeURIComponent(html)}`,
+      out: join(dir, `${mobile}.png`),
+      fill: [],
+      click: [],
+      width: 390,
+      height: 844,
+      mobile,
+      timeoutMs: 15_000,
+    });
+
+  const desktop = await shoot(false);
+  assert.equal((await readFile(desktop.out)).readUInt32BE(16), 390);
+  // パソコンとして描くと、スクロールバーの分だけ幅が 390 より狭く、タッチの端末でもない
+  assert.match(desktop.problems.join("\n"), /^console\.error: 3[0-8]\d false$/);
+
+  const mobile = await shoot(true);
+  assert.equal((await readFile(mobile.out)).readUInt32BE(16), 780);
+  assert.deepEqual(mobile.problems, ["console.error: 390 true"]);
 });

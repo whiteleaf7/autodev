@@ -12,6 +12,7 @@ test("省略した引数は既定値になり、渡した値は数として読�
     waitAfter: undefined,
     width: 1280,
     height: 800,
+    mobile: false,
     timeoutMs: 15_000,
   });
   assert.deepEqual(
@@ -44,9 +45,21 @@ test("省略した引数は既定値になり、渡した値は数として読�
       waitAfter: "#done",
       width: 320,
       height: 200,
+      mobile: false,
       timeoutMs: 500,
     },
   );
+});
+
+test("--mobile は、幅と高さを省くとスマホの大きさになり、渡した方はそのまま使う", () => {
+  const viewport = (argv: string[]) => {
+    const { width, height, mobile } = parseScreenshotArgs(["http://127.0.0.1/", "out.png", ...argv]);
+    return { width, height, mobile };
+  };
+  assert.deepEqual(viewport(["--mobile"]), { width: 390, height: 844, mobile: true });
+  assert.deepEqual(viewport(["--mobile", "--width", "412"]), { width: 412, height: 844, mobile: true });
+  assert.deepEqual(viewport(["--height", "600", "--mobile"]), { width: 390, height: 600, mobile: true });
+  assert.deepEqual(viewport(["--width", "390"]), { width: 390, height: 800, mobile: false });
 });
 
 test("足りない・不正な引数は、使い方を添えて断る", () => {

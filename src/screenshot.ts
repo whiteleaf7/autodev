@@ -15,14 +15,18 @@ export async function capture(page: Page, out: string): Promise<string> {
   return file;
 }
 
-export async function setViewport(page: Page, width: number, height: number): Promise<void> {
-  await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+type Viewport = Pick<ScreenshotOptions, "width" | "height" | "mobile">;
+
+// mobile でないと、狭い幅でもパソコンのスクロールバーが幅を取り、hover や pointer の media query もパソコンのままになる
+export async function setViewport(page: Page, { width, height, mobile }: Viewport): Promise<void> {
+  await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: mobile ? 2 : 1, mobile });
+  await page.send("Emulation.setTouchEmulationEnabled", { enabled: mobile });
 }
 
 export async function screenshot(options: ScreenshotOptions): Promise<{ out: string; problems: string[] }> {
   return withChrome(options.timeoutMs, async (browser) => {
     const page = await browser.page();
-    await setViewport(page, options.width, options.height);
+    await setViewport(page, options);
     await page.send("Page.navigate", { url: options.url });
     await waitUntil(
       async () => (await page.evaluate("document.readyState")) === "complete",

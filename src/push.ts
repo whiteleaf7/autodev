@@ -69,7 +69,7 @@ async function main(): Promise<boolean> {
       // ヘッドレスでは許可を聞く画面が出ないので、先に与えておく
       await browser.grant(origin, ["notifications"]);
       const page = await browser.page();
-      await setViewport(page, 390, 844);
+      await setViewport(page, { width: 390, height: 844, mobile: false });
       await page.send("Page.navigate", { url: `${origin}/?code=${code}#/devices` });
       await page.appears('.app[data-connection="connected"]');
       await page.appears('.push[data-push="false"]');
