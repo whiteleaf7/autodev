@@ -5,6 +5,7 @@
   "scripts": {
     "screenshot": "node src/screenshot.ts",
     "app": "node src/app.ts",
+    "push": "node src/push.ts",
     "windows": "swift src/windows.swift",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.ts"
