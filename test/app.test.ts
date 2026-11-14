@@ -6,7 +6,7 @@ import { judge, type Observed, PROOF_FILE, PROOF_TEXT, prompt, scenario } from "
 const passing: Observed = {
   tools: [{ name: "Write", status: "done" }],
   assistant: ["Done."],
-  turn: { text: "Turn finished · 4.2s", isError: false },
+  turn: { text: "Turn finished", isError: false },
   alerts: [],
   transcript: "",
 };
