@@ -13,6 +13,8 @@ const passing: Observed = {
 
 test("Write が完了し、返事とターンの終わりが画面に出て、ファイルが書かれていれば通す", () => {
   assert.deepEqual(judge(passing, `${PROOF_TEXT}\n`), []);
+  const withOtherTools = { ...passing, tools: [{ name: "Read", status: "done" }, ...passing.tools] };
+  assert.deepEqual(judge(withOtherTools, PROOF_TEXT), [], "ほかのツールが並んでいても、完了した Write があれば通す");
 });
 
 test("画面に出ていないものと、書かれていないファイルを、それぞれ理由にする", () => {
