@@ -12,8 +12,7 @@ test("引数を既定値つきで読む", () => {
     url: "http://127.0.0.1:4848/",
     out: "out.png",
     waitFor: ".card",
-    fill: [],
-    click: [],
+    steps: [],
     waitAfter: undefined,
     width: 1280,
     height: 800,
@@ -44,12 +43,14 @@ const chromeInstalled = existsSync(
   process.env.NAGAYA_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 );
 
-test("ページを撮り、撮る前に入力欄に値を入れて指定の要素をクリックし、コンソールのエラーも返す", {
+test("ページを撮り、撮る前に入力とクリックを並べた順に行い、コンソールのエラーも返す", {
   skip: !chromeInstalled && "Chrome がない",
 }, async (t) => {
+  // 2 つめの入力欄は、#open を押した後にだけ現れる
   const html = [
     '<p id="ready">hi</p><input id="code" oninput="window.typed = this.value">',
-    `<button id="b" onclick="console.error('clicked ' + window.typed); document.body.append(Object.assign(document.createElement('p'), { id: 'done' }))">b</button>`,
+    `<button id="open" onclick="document.body.append(Object.assign(document.createElement('input'), { id: 'title', oninput: (e) => { window.renamed = e.target.value } }))">open</button>`,
+    `<button id="b" onclick="console.error('clicked ' + window.typed + ' ' + window.renamed); document.body.append(Object.assign(document.createElement('p'), { id: 'done' }))">b</button>`,
     '<script>console.error("boom")</script>',
   ].join("");
   const dir = await mkdtemp(join(tmpdir(), "nagaya-verify-test-"));
@@ -59,8 +60,12 @@ test("ページを撮り、撮る前に入力欄に値を入れて指定の要�
     url: `data:text/html,${encodeURIComponent(html)}`,
     out,
     waitFor: "#ready",
-    fill: [{ selector: "#code", value: "ABCD" }],
-    click: ["#b"],
+    steps: [
+      { action: "fill", selector: "#code", value: "ABCD" },
+      { action: "click", selector: "#open" },
+      { action: "fill", selector: "#title", value: "new" },
+      { action: "click", selector: "#b" },
+    ],
     waitAfter: "#done",
     width: 320,
     height: 200,
@@ -72,7 +77,7 @@ test("ページを撮り、撮る前に入力欄に値を入れて指定の要�
   const png = await readFile(result.out);
   assert.equal(png.subarray(1, 4).toString(), "PNG");
   assert.equal(png.readUInt32BE(16), 320);
-  assert.deepEqual(result.problems, ["console.error: boom", "console.error: clicked ABCD"]);
+  assert.deepEqual(result.problems, ["console.error: boom", "console.error: clicked ABCD new"]);
 });
 
 test("--mobile では、スクロールバーが幅を取らず、タッチの端末として 2 倍の解像度で撮る", {
@@ -88,8 +93,7 @@ test("--mobile では、スクロールバーが幅を取らず、タッチの�
     screenshot({
       url: `data:text/html,${encodeURIComponent(html)}`,
       out: join(dir, `${mobile}.png`),
-      fill: [],
-      click: [],
+      steps: [],
       width: 390,
       height: 844,
       mobile,
@@ -118,8 +122,7 @@ test("--dark では、prefers-color-scheme を dark にして描く", {
     screenshot({
       url: `data:text/html,${encodeURIComponent(html)}`,
       out: join(dir, `${dark}.png`),
-      fill: [],
-      click: [],
+      steps: [],
       width: 320,
       height: 200,
       mobile: false,
@@ -146,8 +149,7 @@ test("--reduced-motion では動きを止める設定で描き、--later では�
     screenshot({
       url: `data:text/html,${encodeURIComponent(html)}`,
       out: join(dir, `${reducedMotion}.png`),
-      fill: [],
-      click: [],
+      steps: [],
       width: 320,
       height: 200,
       mobile: false,
@@ -175,8 +177,7 @@ test("--lang では、ブラウザの言語と Intl の既定をその言語に�
     screenshot({
       url: `data:text/html,${encodeURIComponent(html)}`,
       out: join(dir, `${lang}.png`),
-      fill: [],
-      click: [],
+      steps: [],
       width: 320,
       height: 200,
       mobile: false,

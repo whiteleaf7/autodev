@@ -7,8 +7,7 @@ test("省略した引数は既定値になり、渡した値は数として読�
     url: "http://127.0.0.1:4848/",
     out: "out.png",
     waitFor: undefined,
-    fill: [],
-    click: [],
+    steps: [],
     waitAfter: undefined,
     width: 1280,
     height: 800,
@@ -50,8 +49,11 @@ test("省略した引数は既定値になり、渡した値は数として読�
       url: "https://example.com/a",
       out: "dir/shot.png",
       waitFor: "#ready",
-      fill: [{ selector: "input[name=code]", value: "ABCD-EFGH" }],
-      click: [".card", "#edit"],
+      steps: [
+        { action: "click", selector: ".card" },
+        { action: "click", selector: "#edit" },
+        { action: "fill", selector: "input[name=code]", value: "ABCD-EFGH" },
+      ],
       waitAfter: "#done",
       width: 320,
       height: 200,
@@ -63,6 +65,29 @@ test("省略した引数は既定値になり、渡した値は数として読�
       timeoutMs: 500,
     },
   );
+});
+
+test("--fill と --click は、ほかの引数を挟んでも、並んだ順の 1 つの手順にする", () => {
+  const { steps } = parseScreenshotArgs([
+    "http://127.0.0.1/",
+    "--fill",
+    "#code=ABCD",
+    "--click",
+    ".title",
+    "--dark",
+    "--click=#rename",
+    "out.png",
+    "--fill=input.title=新しい題",
+    "--click",
+    "#save",
+  ]);
+  assert.deepEqual(steps, [
+    { action: "fill", selector: "#code", value: "ABCD" },
+    { action: "click", selector: ".title" },
+    { action: "click", selector: "#rename" },
+    { action: "fill", selector: "input.title", value: "新しい題" },
+    { action: "click", selector: "#save" },
+  ]);
 });
 
 test("--mobile は、幅と高さを省くとスマホの大きさになり、渡した方はそのまま使う", () => {
@@ -94,6 +119,7 @@ test("足りない・不正な引数は、使い方を添えて断る", () => {
   rejects(["http://127.0.0.1/", "out.png", "--width", "wide"], /width/);
   rejects(["http://127.0.0.1/", "out.png", "--wait-for", ""], /waitFor/);
   rejects(["http://127.0.0.1/", "out.png", "--fill", "#code"], /--fill は/);
+  rejects(["http://127.0.0.1/", "out.png", "--click="], /steps/);
   assert.throws(() => parseScreenshotArgs(["http://127.0.0.1/", "out.png", "--unknown", "1"]));
 });
 

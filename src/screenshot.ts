@@ -53,17 +53,15 @@ export async function screenshot(
       "読み込みが終わらない",
     );
     if (options.waitFor) await page.appears(options.waitFor);
-    for (const { selector, value } of options.fill) {
-      await page.appears(selector);
-      // Preact などは input のイベントで値を読むので、値を入れてからイベントを送る
+    for (const step of options.steps) {
+      const element = `document.querySelector(${JSON.stringify(step.selector)})`;
+      await page.appears(step.selector);
       await page.evaluate(
-        `{ const el = document.querySelector(${JSON.stringify(selector)}); el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event("input", { bubbles: true })); }`,
+        step.action === "click"
+          ? `${element}.click()`
+          : // Preact などは input のイベントで値を読むので、値を入れてからイベントを送る
+            `{ const el = ${element}; el.value = ${JSON.stringify(step.value)}; el.dispatchEvent(new Event("input", { bubbles: true })); }`,
       );
-      await sleep(200);
-    }
-    for (const selector of options.click) {
-      await page.appears(selector);
-      await page.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
       await sleep(200);
     }
     if (options.waitAfter) await page.appears(options.waitAfter);

@@ -4,27 +4,29 @@ import { z } from "zod";
 // --mobile で幅と高さを省いたときは、よくあるスマホの大きさ（iPhone の 390×844）で撮る
 const viewportDefaults = { desktop: { width: 1280, height: 800 }, mobile: { width: 390, height: 844 } };
 
+const Step = z.discriminatedUnion("action", [
+  // 入力欄に値を入れる（<CSS セレクタ>=<値>）。セレクタには [name=code] のように = が入るので、
+  // 最後の = で分ける（値に = は使えない）
+  z
+    .object({ action: z.literal("fill"), arg: z.string().regex(/^.+=[^=]*$/, "--fill は <CSS セレクタ>=<値> にする") })
+    .transform(({ arg }) => ({
+      action: "fill" as const,
+      selector: arg.slice(0, arg.lastIndexOf("=")),
+      value: arg.slice(arg.lastIndexOf("=") + 1),
+    })),
+  z
+    .object({ action: z.literal("click"), arg: z.string().min(1) })
+    .transform(({ arg }) => ({ action: "click" as const, selector: arg })),
+]);
+
 const ScreenshotOptions = z
   .object({
     url: z.url(),
     out: z.string().endsWith(".png", "出力先は .png にする"),
     waitFor: z.string().min(1).optional(),
-    // クリックの前に、入力欄に値を入れる（<CSS セレクタ>=<値>）。登録のコードを打つなど。
-    // セレクタには [name=code] のように = が入るので、最後の = で分ける（値に = は使えない）
-    fill: z
-      .array(
-        z
-          .string()
-          .regex(/^.+=[^=]*$/, "--fill は <CSS セレクタ>=<値> にする")
-          .transform((pair) => ({
-            selector: pair.slice(0, pair.lastIndexOf("=")),
-            value: pair.slice(pair.lastIndexOf("=") + 1),
-          })),
-      )
-      .default([]),
-    // 撮る前に、この順にクリックする要素（モーダルを開くなど）
-    click: z.array(z.string().min(1)).default([]),
-    // クリックの後、撮る前に出るのを待つ要素
+    // 撮る前に、コマンドラインに並んだ順に行う入力とクリック。クリックの後に出る入力欄も埋められる
+    steps: z.array(Step).default([]),
+    // 操作の後、撮る前に出るのを待つ要素
     waitAfter: z.string().min(1).optional(),
     width: z.coerce.number().int().positive().optional(),
     height: z.coerce.number().int().positive().optional(),
@@ -55,12 +57,14 @@ const ScreenshotOptions = z
 export type ScreenshotOptions = z.infer<typeof ScreenshotOptions>;
 
 export const usage =
-  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--fill <CSS セレクタ>=<値>]... [--click <CSS セレクタ>]... [--wait-after <CSS セレクタ>] [--width 1280] [--height 800] [--mobile] [--dark] [--reduced-motion] [--later <ミリ秒>] [--lang ja] [--timeout 15000]";
+  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--fill <CSS セレクタ>=<値> | --click <CSS セレクタ>]... [--wait-after <CSS セレクタ>] [--width 1280] [--height 800] [--mobile] [--dark] [--reduced-motion] [--later <ミリ秒>] [--lang ja] [--timeout 15000]";
 
 export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
-  const { positionals, values } = parseArgs({
+  const { positionals, values, tokens } = parseArgs({
     args: argv,
     allowPositionals: true,
+    // values は名前ごとにまとめるので、--fill と --click の前後は tokens から読む
+    tokens: true,
     options: {
       "wait-for": { type: "string" },
       fill: { type: "string", multiple: true },
@@ -80,8 +84,11 @@ export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
     url: positionals[0],
     out: positionals[1],
     waitFor: values["wait-for"],
-    fill: values.fill,
-    click: values.click,
+    steps: tokens.flatMap((token) =>
+      token.kind === "option" && (token.name === "fill" || token.name === "click")
+        ? [{ action: token.name, arg: token.value }]
+        : [],
+    ),
     waitAfter: values["wait-after"],
     width: values.width,
     height: values.height,
