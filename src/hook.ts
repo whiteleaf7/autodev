@@ -1,5 +1,5 @@
 // git のフック（.githooks/）から呼ばれる。
-//   node tools/harness/src/hook.ts pre-commit              無視されているファイルの混入を確かめ、ステージしたファイルを整形してからゲートを通す
+//   node tools/harness/src/hook.ts pre-commit              無視されているファイルの混入を確かめ、ステージしたファイルを整形してから、コミットされる中身でゲートを通す
 //   node tools/harness/src/hook.ts commit-msg <ファイル>   コミットメッセージの決まりを確かめる
 //   node tools/harness/src/hook.ts pre-push                main への push を止める
 
@@ -8,7 +8,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readTasks } from "@nagaya/devboard/src/store.ts";
 import { checkMessage, filesToFormat, pushesToMain } from "./commit.ts";
-import { withoutGitEnv } from "./env.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 
@@ -56,7 +55,8 @@ function preCommit(): void {
     );
   }
   formatStaged(staged);
-  const { status } = spawnSync("pnpm", ["check"], { cwd: ROOT, stdio: "inherit", env: withoutGitEnv(process.env) });
+  // 作業ツリーではなく、コミットされる中身でゲートを通す。index の場所（GIT_INDEX_FILE）を引き継ぐため、環境変数はそのまま渡す
+  const { status } = spawnSync("node", ["tools/harness/src/check.ts", "--staged"], { cwd: ROOT, stdio: "inherit" });
   if (status !== 0) process.exit(status ?? 1);
 }
 

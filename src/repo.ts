@@ -1,4 +1,4 @@
-// 検査が見るリポジトリの姿。いまの作業ツリーと、基点（HEAD）の 2 つを持つ。
+// 検査が見るリポジトリの姿。いまの姿（作業ツリーか、pre-commit では index を写したもの）と、基点（HEAD）の 2 つを持つ。
 // 検査は副作用を持たない関数にして、テストではメモリ上のリポジトリを渡す。
 
 import { execFileSync } from "node:child_process";
@@ -31,14 +31,16 @@ function cached(read: (path: string) => string | null): (path: string) => string
   };
 }
 
-export function loadRepo(root: string): Repo {
-  const listed = git(root, ["ls-files", "-co", "--exclude-standard", "-z"]);
-  if (listed === null) throw new Error(`${root} は git のリポジトリではない`);
-  const files = listed.split("\0").filter((f) => f && existsSync(join(root, f)));
+// staged を渡すと、作業ツリーの代わりに、index を写したもの（snapshot.ts の snapshotIndex）をいまの姿として読む
+export function loadRepo(root: string, staged?: { dir: string; files: string[] }): Repo {
+  const listed = staged?.files ?? git(root, ["ls-files", "-co", "--exclude-standard", "-z"])?.split("\0");
+  if (!listed) throw new Error(`${root} は git のリポジトリではない`);
+  const dir = staged?.dir ?? root;
+  const files = listed.filter((f) => f && existsSync(join(dir, f)));
   const baseListed = git(root, ["ls-tree", "-r", "--name-only", "-z", "HEAD"]);
   return {
     files,
-    read: cached((path) => (existsSync(join(root, path)) ? readFileSync(join(root, path), "utf8") : null)),
+    read: cached((path) => (existsSync(join(dir, path)) ? readFileSync(join(dir, path), "utf8") : null)),
     base:
       baseListed === null
         ? null

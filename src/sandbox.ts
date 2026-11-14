@@ -9,39 +9,19 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  readdirSync,
   realpathSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import type { Edit } from "./scenario.ts";
+import { LINKED_MODULES_ENV, linkPackageModules } from "./snapshot.ts";
 
-// pnpm は複製の中で依存のずれを見つけると pnpm install を始め、リンク先の node_modules を消そうとする
-const SANDBOX_ENV = { ...process.env, pnpm_config_verify_deps_before_run: "false" };
+const SANDBOX_ENV = { ...process.env, ...LINKED_MODULES_ENV };
 
 function git(cwd: string, args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-}
-
-// node_modules は丸ごとリンクせず、中身を 1 つずつリンクする。
-// 丸ごとリンクすると、複製の node_modules 直下への書き込みが本物に届いてしまう。
-// workspace のパッケージへのリンクは、複製の中の同じパッケージに向け直す（相対リンクなので、複製をさらに写しても保たれる）
-function linkModules(from: string, to: string, root: string, template: string): void {
-  mkdirSync(to);
-  for (const name of readdirSync(from)) {
-    const source = join(from, name);
-    if (!existsSync(source)) continue; // 切れたリンク
-    if (name.startsWith("@") && !lstatSync(source).isSymbolicLink()) {
-      linkModules(source, join(to, name), root, template);
-      continue;
-    }
-    const real = realpathSync(source);
-    const isWorkspacePackage = real.startsWith(root + sep) && !real.includes(`${sep}node_modules${sep}`);
-    symlinkSync(isWorkspacePackage ? relative(to, join(template, relative(root, real))) : source, join(to, name));
-  }
 }
 
 export function createTemplate(repoRoot: string): string {
@@ -54,11 +34,7 @@ export function createTemplate(repoRoot: string): string {
     mkdirSync(dirname(join(template, file)), { recursive: true });
     cpSync(from, join(template, file));
   }
-  const packageDirs = files.filter((f) => f === "package.json" || f.endsWith("/package.json")).map((f) => dirname(f));
-  for (const dir of packageDirs) {
-    const modules = join(root, dir, "node_modules");
-    if (existsSync(modules)) linkModules(modules, join(template, dir, "node_modules"), root, template);
-  }
+  linkPackageModules(root, template, files);
   git(template, ["init", "-q"]);
   // .gitignore の「node_modules/」は、リンクを含むディレクトリの中身までは隠さない場合に備える
   mkdirSync(join(template, ".git", "info"), { recursive: true });
