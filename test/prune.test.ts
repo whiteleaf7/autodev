@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, realpathSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withoutGitEnv } from "../src/env.ts";
@@ -22,8 +22,9 @@ function branches(repo: string): string[] {
   return git(repo, "branch", "--format=%(refname:short)").split("\n").sort();
 }
 
-test("main の worktree が別のブランチを開いていても、main か origin/main に取り込まれた worktree を片付ける", () => {
+test("main の worktree が別のブランチを開いていても、main か origin/main に取り込まれた worktree を片付ける", (t) => {
   const repo = realpathSync(mkdtempSync(join(tmpdir(), "nagaya-prune-test-")));
+  t.after(() => rmSync(repo, { recursive: true, force: true }));
   git(repo, "init", "-q", "-b", "main");
   git(repo, "commit", "-q", "--allow-empty", "-m", "base");
   git(repo, "switch", "-q", "-c", "feat/other");

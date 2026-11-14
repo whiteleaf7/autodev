@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -25,6 +25,7 @@ function lint(files: Record<string, string>): Record<string, string[]> {
     ["-c", join(dir, ".oxlintrc.json"), "-f", "unix", dir],
     { encoding: "utf8" },
   );
+  rmSync(dir, { recursive: true, force: true });
   assert.ok(stdout !== null, `oxlint を起動できない: ${stderr}`);
   const found: Record<string, string[]> = Object.fromEntries(Object.keys(files).map((name) => [name, []]));
   for (const line of stdout.split("\n")) {

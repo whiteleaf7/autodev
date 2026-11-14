@@ -1,6 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+  existsSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkMessage, filesToFormat } from "../src/commit.ts";
@@ -25,8 +34,9 @@ test("コードをコメント・文字列・それ以外に分け、位置を�
   );
 });
 
-test("シナリオの編集を当て、当てられないときは理由を返す", () => {
+test("シナリオの編集を当て、当てられないときは理由を返す", (t) => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "nagaya-harness-test-")));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
   writeFileSync(join(dir, "a.txt"), "one two two\n");
   assert.equal(applyEdits(dir, [{ file: "a.txt", find: "one", replace: "$1 & 1" }]), null);
   assert.equal(readFileSync(join(dir, "a.txt"), "utf8"), "$1 & 1 two two\n");
@@ -43,6 +53,7 @@ test("シナリオの編集を当て、当てられないときは理由を返�
   assert.match(applyEdits(dir, [{ file: "../outside.txt", write: "x" }]) ?? "", /外/);
 
   const real = mkdtempSync(join(tmpdir(), "nagaya-harness-real-"));
+  t.after(() => rmSync(real, { recursive: true, force: true }));
   mkdirSync(join(dir, "node_modules"));
   symlinkSync(real, join(dir, "node_modules", "pkg"));
   assert.match(applyEdits(dir, [{ file: "node_modules/pkg/index.js", write: "x" }]) ?? "", /リンク/);
