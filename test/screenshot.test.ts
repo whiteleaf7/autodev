@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseDevToolsActivePort, parseScreenshotArgs } from "../src/options.ts";
@@ -41,13 +41,15 @@ const chromeInstalled = existsSync(
 
 test("ページを撮り、撮る前に入力欄に値を入れて指定の要素をクリックし、コンソールのエラーも返す", {
   skip: !chromeInstalled && "Chrome がない",
-}, async () => {
+}, async (t) => {
   const html = [
     '<p id="ready">hi</p><input id="code" oninput="window.typed = this.value">',
     `<button id="b" onclick="console.error('clicked ' + window.typed); document.body.append(Object.assign(document.createElement('p'), { id: 'done' }))">b</button>`,
     '<script>console.error("boom")</script>',
   ].join("");
-  const out = join(await mkdtemp(join(tmpdir(), "nagaya-verify-test-")), "page.png");
+  const dir = await mkdtemp(join(tmpdir(), "nagaya-verify-test-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const out = join(dir, "page.png");
   const result = await screenshot({
     url: `data:text/html,${encodeURIComponent(html)}`,
     out,
