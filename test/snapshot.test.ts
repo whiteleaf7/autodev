@@ -28,7 +28,7 @@ function write(root: string, file: string, text: string): void {
 }
 
 test("index の中身を写し、ステージしていない変更と追跡していないファイルは写さない", (t) => {
-  const repo = realpathSync(mkdtempSync(join(tmpdir(), "nagaya-snapshot-test-")));
+  const repo = realpathSync(mkdtempSync(join(tmpdir(), "autodev-snapshot-test-")));
   t.after(() => rmSync(repo, { recursive: true, force: true }));
   git(repo, "init", "-q");
   write(repo, "package.json", "{}");

@@ -6,7 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { readTasks } from "@nagaya/devboard/src/store.ts";
+import { readTasks } from "@repo/devboard/src/store.ts";
 import { checkMessage, filesToFormat, pushesToMain } from "./commit.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");

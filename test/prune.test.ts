@@ -23,7 +23,7 @@ function branches(repo: string): string[] {
 }
 
 test("main の worktree が別のブランチを開いていても、main か origin/main に取り込まれた worktree を片付ける", (t) => {
-  const repo = realpathSync(mkdtempSync(join(tmpdir(), "nagaya-prune-test-")));
+  const repo = realpathSync(mkdtempSync(join(tmpdir(), "autodev-prune-test-")));
   t.after(() => rmSync(repo, { recursive: true, force: true }));
   git(repo, "init", "-q", "-b", "main");
   git(repo, "commit", "-q", "--allow-empty", "-m", "base");

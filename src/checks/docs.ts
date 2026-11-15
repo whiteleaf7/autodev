@@ -4,7 +4,8 @@
 import { posix } from "node:path";
 import { packageDirs, parseJson, type Problem, type Repo } from "../repo.ts";
 
-const isDoc = (path: string) => path === "CLAUDE.md" || path === "README.md" || /^docs\/.+\.md$/.test(path);
+const isDoc = (path: string) =>
+  path === "CLAUDE.md" || path === "AGENTS.md" || path === "README.md" || /^docs\/.+\.md$/.test(path);
 
 // スクリプトではなく pnpm 自身のコマンド
 const PNPM_BUILTINS = new Set([
@@ -58,9 +59,9 @@ const PNPM_FLAGS = new Set([
   "--if-present",
 ]);
 const PLACEHOLDER = /[<>*…{}]|\.\.\.|N{3,}/;
-const REPO_PATH = /^(?:\.\/)?((?:docs|tools|dev|spikes|apps|packages|\.claude|\.githooks)\/[\w@.\-/[\]]*)$/;
+const REPO_PATH = /^(?:\.\/)?((?:docs|tools|dev|spikes|apps|packages|\.claude|\.codex|\.githooks)\/[\w@.\-/[\]]*)$/;
 const TOOL_NAME =
-  /^(?:mcp__nagaya-dev__)?((?:get|list|create|update|set|open|add|search|delete|remove|record|find)_[a-z_]+)$/;
+  /^(?:mcp__(?:devboard|nagaya-dev)__)?((?:get|list|create|update|set|open|add|search|delete|remove|record|find)_[a-z_]+)$/;
 
 type Snippet = { text: string; line: number };
 
@@ -90,13 +91,23 @@ type Facts = {
 function gatherFacts(repo: Repo): Facts {
   const packageScripts = new Map<string, Set<string>>();
   let rootScripts = new Set<string>();
+  const rootJson = parseJson(repo.read("package.json"));
+  const rootName =
+    typeof rootJson === "object" && rootJson !== null && typeof (rootJson as Record<string, unknown>).name === "string"
+      ? ((rootJson as Record<string, unknown>).name as string)
+      : null;
   for (const dir of packageDirs(repo)) {
     const json = parseJson(repo.read(dir ? `${dir}/package.json` : "package.json"));
     if (typeof json !== "object" || json === null) continue;
     const { name, scripts } = json as Record<string, unknown>;
     const names = new Set(Object.keys(typeof scripts === "object" && scripts !== null ? scripts : {}));
     if (!dir) rootScripts = names;
-    if (typeof name === "string") packageScripts.set(name, names);
+    if (typeof name === "string") {
+      packageScripts.set(name, names);
+      if (rootName && name.startsWith("@repo/")) {
+        packageScripts.set(`@${rootName}/${name.slice("@repo/".length)}`, names);
+      }
+    }
   }
   const mcp = repo.read("tools/devboard/src/mcp.ts");
   // .gitignore のうち、ワイルドカードを使わない行だけを読む（無視されるパスは、複製や他の環境には無い）
@@ -183,7 +194,7 @@ function checkDoc(file: string, text: string, facts: Facts): Problem[] {
     }
     const tool = TOOL_NAME.exec(snippet.trim())?.[1];
     if (tool && facts.tools && !facts.tools.has(tool))
-      add("missing-mcp-tool", line, `MCP ツール ${tool} は nagaya-dev に登録されていない`);
+      add("missing-mcp-tool", line, `MCP ツール ${tool} は devboard に登録されていない`);
   }
 
   text.split("\n").forEach((content, i) => {
@@ -225,12 +236,12 @@ function checkConfig(repo: Repo, facts: Facts): Problem[] {
   const settingsText = repo.read(".claude/settings.json");
   const settings = parseJson(settingsText);
   if (settingsText !== null && facts.tools) {
-    for (const m of settingsText.matchAll(/mcp__nagaya-dev__([\w-]+)/g)) {
+    for (const m of settingsText.matchAll(/mcp__(?:devboard|nagaya-dev)__([\w-]+)/g)) {
       if (!facts.tools.has(m[1]!))
         problems.push({
           check: "missing-mcp-tool",
           file: ".claude/settings.json",
-          message: `MCP ツール ${m[1]} は nagaya-dev に登録されていない`,
+          message: `MCP ツール ${m[1]} は devboard に登録されていない`,
         });
     }
   }

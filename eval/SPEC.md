@@ -17,7 +17,7 @@
 
 シナリオごとに、いまの作業ツリー（追跡中のファイルと、無視されていない未追跡のファイル）を一時ディレクトリに複製し、それを基点のコミットにした git リポジトリを作る。そこに `edits` を当ててから判定する。ゲートは基点（HEAD）との差分を見てよい。
 
-ボード（タスク・教訓・マイルストーン）は git の外の SQLite にある（決定記録 0011）。ランナーは評価の始めにいまのボードの写しを 1 つ取り、シナリオごとにそれを複製して、`NAGAYA_BOARD` で渡す。ゲート・コミット・recall・ボードへの操作は、すべてこの写しを読み書きする。
+ボード（タスク・教訓・マイルストーン）は git の外の SQLite にある（決定記録 0011）。ランナーは評価の始めにいまのボードの写しを 1 つ取り、シナリオごとにそれを複製して、`DEVBOARD_DB` で渡す。ゲート・コミット・recall・ボードへの操作は、すべてこの写しを読み書きする。
 
 | family | 判定 |
 |---|---|
@@ -136,7 +136,7 @@ good は、正しいタスクの作成、メモを付けて `done` にする更�
 | `missing-script` | 存在しない pnpm スクリプトへの言及（`pnpm <script>`、`pnpm --filter <パッケージ> <script>`）。ドキュメントに足しても、`package.json` 側を改名・削除してもよい |
 | `missing-path` | インラインコードや Markdown のリンクが指す、リポジトリのルートからのパス（`docs/...`、`tools/...` など）が存在しない |
 | `missing-decision` | 存在しない決定記録の番号への言及（「決定記録 NNNN」） |
-| `missing-mcp-tool` | `nagaya-dev` に登録されていない MCP ツール名への言及（ドキュメントのインラインコード、または `.claude/settings.json` の `mcp__nagaya-dev__*`） |
+| `missing-mcp-tool` | `devboard` に登録されていない MCP ツール名への言及（ドキュメントのインラインコード、または `.claude/settings.json` の `mcp__devboard__*`） |
 | `broken-config` | `.mcp.json` が指すファイルが存在しない |
 
 good は、正しい参照だけを含む追記、スクリプトの改名とドキュメントの同時更新。
@@ -176,7 +176,7 @@ good は、規則どおりのコミット（`Task:` の行に存在するタス�
 
 ```sh
 export pnpm_config_verify_deps_before_run=false
-root=~/github/nagaya
+root=<repo-root>
 tmp=$(mktemp -d)
 (cd "$root" && git ls-files -co --exclude-standard -z | xargs -0 tar -cf -) | tar -xf - -C "$tmp"
 ln -s "$root/node_modules" "$tmp/node_modules"
@@ -186,11 +186,11 @@ done
 (cd "$tmp" && pnpm typecheck && pnpm test)
 # ボードへの操作は、本物のボードの写しに当てて確かめる
 board=$(mktemp -d)/board.sqlite
-node -e 'const { DatabaseSync } = require("node:sqlite"); new DatabaseSync(process.argv[1]).exec(`VACUUM INTO '"'"'${process.argv[2]}'"'"'`)' "$HOME/.nagaya-dev/boards/nagaya.sqlite" "$board"
-(cd "$tmp" && NAGAYA_BOARD="$board" node tools/devboard/src/ops-cli.ts '[{"op":"create_task","args":{"title":"試し"}}]')
+node -e 'const { DatabaseSync } = require("node:sqlite"); new DatabaseSync(process.argv[1]).exec(`VACUUM INTO '"'"'${process.argv[2]}'"'"'`)' "$HOME/.devboard/boards/autodev.sqlite" "$board"
+(cd "$tmp" && DEVBOARD_DB="$board" node tools/devboard/src/ops-cli.ts '[{"op":"create_task","args":{"title":"試し"}}]')
 ```
 
 - `pnpm_config_verify_deps_before_run=false` を必ず付ける。付けないと、pnpm が複製の中で `pnpm install` を始め、リンク先の `node_modules` を消そうとする
 - 同じ理由で、`CI=true` は付けない
 - 複製の `node_modules` は本物へのリンクなので、その下には何も書かない・消さない
-- 本物のリポジトリの中では、シナリオの編集を試さない。ボードへの操作も、本物のボードには当てない（必ず写しの `NAGAYA_BOARD` を付ける）
+- 本物のリポジトリの中では、シナリオの編集を試さない。ボードへの操作も、本物のボードには当てない（必ず写しの `DEVBOARD_DB` を付ける）

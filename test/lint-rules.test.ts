@@ -13,7 +13,7 @@ const RULE = /\[\w+\/([\w-]+)\(([\w-]+)\)\]$/;
 // - macOS の一時ディレクトリはシンボリックリンクの下にあり、リンクを通したパスだと oxlint が import の循環を見落とすので、実体のパスを渡す
 // - tsconfig の無い場所で typeAware のまま動かすと、1 回に 20 秒ほどかかる。ここで確かめるルールは型の情報を使わないので外す
 function lint(files: Record<string, string>): Record<string, string[]> {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "nagaya-lint-")));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "autodev-lint-")));
   const config = JSON.parse(readFileSync(join(ROOT, ".oxlintrc.json"), "utf8"));
   writeFileSync(
     join(dir, ".oxlintrc.json"),

@@ -7,7 +7,7 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readF
 import { availableParallelism, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { board } from "@nagaya/devboard/src/board-db.ts";
+import { board } from "@repo/devboard/src/board-db.ts";
 import { loadScenarios, type Scenario } from "./scenario.ts";
 import { applyEdits, cloneTemplate, createTemplate, removeDir, run } from "./sandbox.ts";
 import { formatSummary, summarize, type Outcome, type Result } from "./score.ts";
@@ -23,7 +23,7 @@ function gateCommand(): string {
 
 // ボードは git の外の SQLite にある（決定記録 0011）。いまのボードの写しを 1 つ取り、シナリオごとにそれを複製して渡す
 function snapshotBoard(): string {
-  const file = join(mkdtempSync(join(tmpdir(), "nagaya-eval-board-")), "board.sqlite");
+  const file = join(mkdtempSync(join(tmpdir(), "autodev-eval-board-")), "board.sqlite");
   board().exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
   return file;
 }
@@ -34,7 +34,7 @@ async function judge(scenario: Scenario, template: string, gate: string, boardSn
   const boardFile = `${dir}.board.sqlite`;
   copyFileSync(boardSnapshot, boardFile);
   // シナリオのコミットで .githooks/post-commit が roborev のレビューを積まないように
-  const env = { NAGAYA_BOARD: boardFile, NAGAYA_SKIP_REVIEW: "1" };
+  const env = { DEVBOARD_DB: boardFile, NAGAYA_BOARD: boardFile, HARNESS_SKIP_REVIEW: "1", NAGAYA_SKIP_REVIEW: "1" };
   try {
     const problem = applyEdits(dir, scenario.edits);
     if (problem) return { scenario, outcome: "inapplicable", detail: problem };

@@ -4,8 +4,8 @@ import { checkDocs } from "../src/checks/docs.ts";
 import { memoryRepo } from "../src/repo.ts";
 
 const repoFiles = {
-  "package.json": `{"name":"nagaya","scripts":{"test":"pnpm -r test","board":"pnpm --filter @nagaya/devboard start"}}`,
-  "tools/devboard/package.json": `{"name":"@nagaya/devboard","scripts":{"start":"node src/server.ts"}}`,
+  "package.json": `{"name":"autodev","scripts":{"test":"pnpm -r test","board":"pnpm --filter @repo/devboard start"}}`,
+  "tools/devboard/package.json": `{"name":"@repo/devboard","scripts":{"start":"node src/server.ts"}}`,
   "tools/devboard/src/mcp.ts": `server.registerTool(\n  "get_overview",\n  {});\nserver.registerTool("create_task", {});\n`,
   "docs/product.md": "# プロダクト\n",
   "docs/decisions/0001-first.md": "# 0001. 最初\n",
@@ -20,13 +20,12 @@ const checksOf = (doc: string, extra: Record<string, string> = {}) =>
 test("無い pnpm スクリプトへの言及を見つける", () => {
   assert.deepEqual(checksOf("テストは `pnpm test`、ボードは `pnpm board`\n"), []);
   assert.deepEqual(checksOf("リントは `pnpm lint`\n"), ["missing-script"]);
+  assert.deepEqual(checksOf("```sh\npnpm --filter @repo/devboard start\npnpm --filter @repo/devboard open\n```\n"), [
+    "missing-script",
+  ]);
+  assert.deepEqual(checksOf("`pnpm --filter @repo/unknown start`\n"), ["missing-script"]);
   assert.deepEqual(
-    checksOf("```sh\npnpm --filter @nagaya/devboard start\npnpm --filter @nagaya/devboard open\n```\n"),
-    ["missing-script"],
-  );
-  assert.deepEqual(checksOf("`pnpm --filter @nagaya/unknown start`\n"), ["missing-script"]);
-  assert.deepEqual(
-    checksOf("`pnpm install` と `pnpm dlx electrobun` と `pnpm --filter @nagaya/* ...`\n"),
+    checksOf("`pnpm install` と `pnpm dlx electrobun` と `pnpm --filter @repo/* ...`\n"),
     [],
     "pnpm 自身のコマンドと、例示の書き方は通す",
   );
@@ -72,8 +71,8 @@ test("無い決定記録と、登録されていない MCP ツールへの言及
 
 test("設定が指すものが無ければ見つける", () => {
   const settings = (tool: string) =>
-    `{"enabledMcpjsonServers":["nagaya-dev"],"permissions":{"allow":["mcp__nagaya-dev__${tool}"]}}`;
-  const mcp = (file: string) => `{"mcpServers":{"nagaya-dev":{"command":"node","args":["${file}"]}}}`;
+    `{"enabledMcpjsonServers":["devboard"],"permissions":{"allow":["mcp__devboard__${tool}"]}}`;
+  const mcp = (file: string) => `{"mcpServers":{"devboard":{"command":"node","args":["${file}"]}}}`;
   const ok = { ".mcp.json": mcp("tools/devboard/src/mcp.ts"), ".claude/settings.json": settings("get_overview") };
   assert.deepEqual(checksOf("# 開発\n", ok), []);
   assert.deepEqual(checksOf("# 開発\n", { ...ok, ".mcp.json": mcp("tools/devboard/src/gone.ts") }), ["broken-config"]);

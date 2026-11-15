@@ -20,7 +20,7 @@ test("127.0.0.1 以外で待ち受けるサーバを見つける", () => {
   assert.deepEqual(inSource('server.listen(port, "127.0.0.1", () => {});'), []);
   assert.deepEqual(inSource('const HOST = "127.0.0.1";\nserver.listen(port, HOST);'), []);
   assert.deepEqual(inSource('Bun.serve({ hostname: "127.0.0.1", port: 3000, fetch });'), []);
-  assert.deepEqual(inSource('server.listen({ path: "/tmp/nagaya.sock" });'), []);
+  assert.deepEqual(inSource('server.listen({ path: "/tmp/autodev.sock" });'), []);
 });
 
 test("pnpm 以外のパッケージマネージャの実行を見つける", () => {

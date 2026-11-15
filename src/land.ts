@@ -209,7 +209,7 @@ async function land(): Promise<void> {
     throw new LandError("コミットしていない変更か、追跡していないファイルがある。コミットするか片付けてから実行する");
   if (!git(top, ["remote", "get-url", REMOTE]).ok) throw new LandError(`リモート ${REMOTE} が無い`);
 
-  const lock = join(gitOut(top, ["rev-parse", "--path-format=absolute", "--git-common-dir"]), "nagaya-land.lock");
+  const lock = join(gitOut(top, ["rev-parse", "--path-format=absolute", "--git-common-dir"]), "autodev-land.lock");
   const merged = await withLandLock(lock, branch, async () => {
     gitOut(top, ["fetch", "-q", REMOTE, MAIN]);
     if (gitOut(top, ["rev-list", "--count", `${UPSTREAM}..${branch}`]) === "0")

@@ -26,13 +26,13 @@ function git(cwd: string, args: string[]): string {
 
 export function createTemplate(repoRoot: string): string {
   const root = realpathSync(repoRoot);
-  const template = mkdtempSync(join(tmpdir(), "nagaya-harness-"));
+  const template = mkdtempSync(join(tmpdir(), "autodev-harness-"));
   const files = git(root, ["ls-files", "-co", "--exclude-standard", "-z"]).split("\0").filter(Boolean);
   for (const file of files) {
     const from = join(root, file);
     if (!existsSync(from)) continue; // 追跡中だが、作業ツリーでは消されている
     mkdirSync(dirname(join(template, file)), { recursive: true });
-    cpSync(from, join(template, file));
+    cpSync(from, join(template, file), { verbatimSymlinks: true });
   }
   linkPackageModules(root, template, files);
   git(template, ["init", "-q"]);
@@ -52,7 +52,7 @@ export function createTemplate(repoRoot: string): string {
 }
 
 export function cloneTemplate(template: string): string {
-  const dir = mkdtempSync(join(tmpdir(), "nagaya-scenario-"));
+  const dir = mkdtempSync(join(tmpdir(), "autodev-scenario-"));
   cpSync(template, dir, { recursive: true, verbatimSymlinks: true });
   return dir;
 }

@@ -76,7 +76,7 @@ test("検査のスクリプトを無意味にする変更を見つける", () =>
   assert.deepEqual(checksOf({ [file]: manifest("echo skip") }, base), ["neutered-script", "neutered-script"]);
   assert.deepEqual(checksOf({ [file]: manifest("node --test test/a.test.ts") }, base), ["neutered-script"]);
   assert.deepEqual(checksOf({ [file]: `{"scripts":{"typecheck":"tsc --noEmit"}}` }, base), ["neutered-script"]);
-  assert.deepEqual(checksOf({ "package.json": `{"scripts":{"test":"pnpm --filter @nagaya/x test"}}` }), [
+  assert.deepEqual(checksOf({ "package.json": `{"scripts":{"test":"pnpm --filter @repo/x test"}}` }), [
     "neutered-script",
   ]);
   const root = { "package.json": `{"scripts":{"lint":"oxlint"}}` };

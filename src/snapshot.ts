@@ -39,7 +39,7 @@ export function linkPackageModules(root: string, copy: string, files: string[]):
 // git が渡す GIT_INDEX_FILE を引き継いで読むので、git commit <パス> や -a の一時的な index も、そのまま写せる
 export function snapshotIndex(repoRoot: string): { dir: string; files: string[] } {
   const root = realpathSync(repoRoot);
-  const dir = mkdtempSync(join(tmpdir(), "nagaya-staged-"));
+  const dir = mkdtempSync(join(tmpdir(), "autodev-staged-"));
   const git = (args: string[]) =>
     execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   git(["checkout-index", "--all", `--prefix=${dir}/`]);

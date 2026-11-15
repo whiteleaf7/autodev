@@ -35,7 +35,7 @@ test("コードをコメント・文字列・それ以外に分け、位置を�
 });
 
 test("シナリオの編集を当て、当てられないときは理由を返す", (t) => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "nagaya-harness-test-")));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "autodev-harness-test-")));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   writeFileSync(join(dir, "a.txt"), "one two two\n");
   assert.equal(applyEdits(dir, [{ file: "a.txt", find: "one", replace: "$1 & 1" }]), null);
@@ -52,7 +52,7 @@ test("シナリオの編集を当て、当てられないときは理由を返�
   assert.ok(existsSync(join(dir, "new/b.txt")) && !existsSync(join(dir, "a.txt")));
   assert.match(applyEdits(dir, [{ file: "../outside.txt", write: "x" }]) ?? "", /外/);
 
-  const real = mkdtempSync(join(tmpdir(), "nagaya-harness-real-"));
+  const real = mkdtempSync(join(tmpdir(), "autodev-harness-real-"));
   t.after(() => rmSync(real, { recursive: true, force: true }));
   mkdirSync(join(dir, "node_modules"));
   symlinkSync(real, join(dir, "node_modules", "pkg"));
