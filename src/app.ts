@@ -12,7 +12,7 @@ import { join, relative, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { z } from "zod";
 import { parseAppArgs } from "./app-options.ts";
-import { judge, OBSERVE, Observed, PROOF_FILE, scenario, type Step } from "./app-scenario.ts";
+import { judge, OBSERVE, Observed, PROOF_FILE, PROOF_MD_FILE, scenario, type Step } from "./app-scenario.ts";
 import { LinkReceiver, STILL_OPEN_AFTER_MS } from "./link-receiver.ts";
 import { waitFor } from "./wait.ts";
 
@@ -183,7 +183,7 @@ async function main(): Promise<boolean> {
     });
     const shell = new Shell(control.port, (await readFile(join(home, "token"), "utf8")).trim());
 
-    const runners = scenario(cwd, receiver?.url ?? null, plugins).map((step) => ({
+    const runners = scenario(cwd, receiver?.url ?? null, plugins, options.openViewer).map((step) => ({
       name: step.name,
       run: () => runStep(shell, step, out),
     }));
@@ -211,8 +211,9 @@ async function main(): Promise<boolean> {
     observed = Observed.parse(await shell.evaluate(OBSERVE));
     await writeFile(join(out, "transcript.txt"), observed.transcript);
     if (results.every((result) => result.ok)) {
-      const proof = await readFile(join(cwd, PROOF_FILE), "utf8").catch(() => null);
-      problems = judge(observed, proof);
+      const proofFile = options.openViewer ? PROOF_MD_FILE : PROOF_FILE;
+      const proof = await readFile(join(cwd, proofFile), "utf8").catch(() => null);
+      problems = judge(observed, proof, options.openViewer);
     }
   } finally {
     await receiver?.close();

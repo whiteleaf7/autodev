@@ -70,7 +70,14 @@ test("リンクを渡すと、返事にそのリンクを入れさせ、ター�
 });
 
 test("既定はビルドし直して軽いモデルで動かし、知らない引数は使い方を添えて断る", () => {
-  assert.deepEqual(parseAppArgs([]), { build: true, model: "haiku", out: undefined, openLink: false, plugins: [] });
+  assert.deepEqual(parseAppArgs([]), {
+    build: true,
+    model: "haiku",
+    out: undefined,
+    openLink: false,
+    openViewer: false,
+    plugins: [],
+  });
   assert.deepEqual(
     parseAppArgs([
       "--skip-build",
@@ -79,12 +86,13 @@ test("既定はビルドし直して軽いモデルで動かし、知らない�
       "--out",
       ".dev/verify/x",
       "--open-link",
+      "--open-viewer",
       "--plugin",
       "a",
       "--plugin",
       "b",
     ]),
-    { build: false, model: "sonnet", out: ".dev/verify/x", openLink: true, plugins: ["a", "b"] },
+    { build: false, model: "sonnet", out: ".dev/verify/x", openLink: true, openViewer: true, plugins: ["a", "b"] },
   );
   assert.throws(() => parseAppArgs(["--fast"]), /使い方: pnpm verify:app/);
 });

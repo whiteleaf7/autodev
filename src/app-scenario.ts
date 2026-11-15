@@ -5,16 +5,20 @@
 import { z } from "zod";
 
 export const PROOF_FILE = "nagaya-verify.txt";
+export const PROOF_MD_FILE = "nagaya-verify.md";
 export const PROOF_TEXT = "nagaya";
 
 // link を渡すと、返事にそのリンクを入れさせる（--open-link。殻で押して既定のブラウザで開くかを確かめる）
-export function prompt(link: string | null): string {
+export function prompt(link: string | null, openViewer = false): string {
+  const file = openViewer ? PROOF_MD_FILE : PROOF_FILE;
   return [
-    `Use the Write tool to create ${PROOF_FILE} in this directory containing the single line "${PROOF_TEXT}".`,
+    `Use the Write tool to create ${file} in this directory containing the single line "${PROOF_TEXT}".`,
     "Do not use any other tools.",
-    link === null
-      ? 'When you are done, reply with just "Done."'
-      : `When you are done, reply with "Done." followed by the Markdown link [verification link](${link}) exactly as written.`,
+    link !== null
+      ? `When you are done, reply with "Done." followed by the Markdown link [verification link](${link}) exactly as written.`
+      : openViewer
+        ? `When you are done, reply with "Done. See [${file}](${file})".`
+        : 'When you are done, reply with just "Done."',
   ].join(" ");
 }
 
@@ -49,7 +53,7 @@ const START = "form.new button[type=submit]";
 const ALLOW = ".permission button.allow";
 
 // plugins は、有効にして起動した外のプラグインの ID。設定の画面で、すべて読まれて登録できたことを確かめる
-export function scenario(cwd: string, link: string | null, plugins: readonly string[]): Step[] {
+export function scenario(cwd: string, link: string | null, plugins: readonly string[], openViewer = false): Step[] {
   const loaded = plugins.map((id) => `.plugin[data-plugin=${JSON.stringify(id)}][data-status="on"]`);
   const steps: Step[] = [
     {
@@ -76,7 +80,7 @@ export function scenario(cwd: string, link: string | null, plugins: readonly str
     },
     {
       name: "作業ディレクトリと指示を入れると「Start」が押せる",
-      act: `${fill("form.new [name=cwd]", cwd)}\n${fill("form.new [name=prompt]", prompt(link))}`,
+      act: `${fill("form.new [name=cwd]", cwd)}\n${fill("form.new [name=prompt]", prompt(link, openViewer))}`,
       until: exists(`${START}:not(:disabled)`),
       timeoutMs: 5_000,
     },
@@ -95,6 +99,34 @@ export function scenario(cwd: string, link: string | null, plugins: readonly str
     },
     { name: "ターンの終わりが画面に出る", until: exists(".entry.turn"), timeoutMs: 120_000, snapshot: "turn-end.png" },
   ];
+  if (openViewer) {
+    steps.push(
+      {
+        name: "会話のリンクまたはツールの行から Markdown ファイルを開く",
+        act: `{
+          const target = document.querySelector(".tool-file-link") || document.querySelector(".entry.assistant a.file-link") || document.querySelector(".entry.assistant button.file-link") || document.querySelector(".entry.assistant code.file-link");
+          if (!target) throw new Error("ファイルリンクまたはツール行のリンクが無い");
+          target.click();
+        }`,
+        until: exists(".viewer-panel .markdown-viewer"),
+        timeoutMs: 10_000,
+        snapshot: "viewer-markdown.png",
+      },
+      {
+        name: "「本文」ボタンを押すと行番号つきテキストに切り替わる",
+        act: click(".panel-action-btn"),
+        until: exists(".viewer-panel .raw-viewer .code-lines"),
+        timeoutMs: 5_000,
+        snapshot: "viewer-raw.png",
+      },
+      {
+        name: "「✕」ボタンを押すとビューアが閉じる",
+        act: click(".panel-close-btn"),
+        until: "return document.querySelector('.viewer-panel') === null;",
+        timeoutMs: 5_000,
+      },
+    );
+  }
   if (link === null) return steps;
   const anchor = `.entry.assistant a[target=_blank][href=${JSON.stringify(link)}]`;
   return [
@@ -136,8 +168,9 @@ export const Observed = z.object({
 export type Observed = z.infer<typeof Observed>;
 
 // 画面に出たものと、作業ディレクトリに書かれたファイルの中身（無ければ null）から、通らなかった理由を挙げる
-export function judge(observed: Observed, proofFile: string | null): string[] {
+export function judge(observed: Observed, proofFile: string | null, openViewer = false): string[] {
   const problems: string[] = [];
+  const fileName = openViewer ? PROOF_MD_FILE : PROOF_FILE;
   if (!observed.tools.some((tool) => tool.name === "Write" && tool.status === "done")) {
     problems.push(`画面に完了した Write が無い（ツール: ${JSON.stringify(observed.tools)}）`);
   }
@@ -145,9 +178,9 @@ export function judge(observed: Observed, proofFile: string | null): string[] {
   if (observed.turn === null) problems.push("画面にターンの終わりが無い");
   else if (observed.turn.isError) problems.push(`ターンがエラーで終わった: ${observed.turn.text}`);
   if (observed.alerts.length > 0) problems.push(`画面にエラーが出ている: ${observed.alerts.join(" / ")}`);
-  if (proofFile === null) problems.push(`承認した Write の結果の ${PROOF_FILE} が作業ディレクトリに無い`);
+  if (proofFile === null) problems.push(`承認した Write の結果の ${fileName} が作業ディレクトリに無い`);
   else if (proofFile.trim() !== PROOF_TEXT) {
-    problems.push(`${PROOF_FILE} の中身が「${PROOF_TEXT}」でない: ${JSON.stringify(proofFile)}`);
+    problems.push(`${fileName} の中身が「${PROOF_TEXT}」でない: ${JSON.stringify(proofFile)}`);
   }
   return problems;
 }
