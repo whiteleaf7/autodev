@@ -57,7 +57,7 @@ const ScreenshotOptions = z
 export type ScreenshotOptions = z.infer<typeof ScreenshotOptions>;
 
 export const usage =
-  "使い方: pnpm --filter @nagaya/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--fill <CSS セレクタ>=<値> | --click <CSS セレクタ>]... [--wait-after <CSS セレクタ>] [--width 1280] [--height 800] [--mobile] [--dark] [--reduced-motion] [--later <ミリ秒>] [--lang ja] [--timeout 15000]";
+  "使い方: pnpm --filter @repo/verify screenshot <url> <出力先.png> [--wait-for <CSS セレクタ>] [--fill <CSS セレクタ>=<値> | --click <CSS セレクタ>]... [--wait-after <CSS セレクタ>] [--width 1280] [--height 800] [--mobile] [--dark] [--reduced-motion] [--later <ミリ秒>] [--lang ja] [--timeout 15000]";
 
 export function parseScreenshotArgs(argv: string[]): ScreenshotOptions {
   const { positionals, values, tokens } = parseArgs({

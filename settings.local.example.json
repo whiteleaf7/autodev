@@ -2,6 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(pnpm install)",
+      "Bash(pnpm --filter @repo/* *)",
       "Bash(pnpm --filter @nagaya/* *)",
       "Bash(pnpm dlx electrobun@2.0.6 *)",
       "Bash(hutch *)",

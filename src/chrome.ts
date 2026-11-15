@@ -8,7 +8,10 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseDevToolsActivePort } from "./options.ts";
 
-const chromePath = process.env.NAGAYA_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const chromePath =
+  process.env.VERIFY_CHROME ??
+  process.env.NAGAYA_CHROME ??
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 type CdpEvent = { method: string; params: Record<string, unknown>; sessionId?: string };
 
@@ -66,7 +69,7 @@ async function waitForFile(path: string, timeoutMs: number): Promise<string> {
     if (text.includes("\n")) return text;
     await sleep(50);
   }
-  throw new Error(`Chrome が起動しない（${chromePath}）。NAGAYA_CHROME で場所を指定できる`);
+  throw new Error(`Chrome が起動しない（${chromePath}）。VERIFY_CHROME で場所を指定できる`);
 }
 
 export async function waitUntil(check: () => Promise<boolean>, timeoutMs: number, what: string): Promise<void> {
@@ -110,7 +113,7 @@ export type Browser = {
 
 // Chrome を起動して use に渡し、終わったら Chrome とプロファイルを片付ける
 export async function withChrome<T>(timeoutMs: number, use: (browser: Browser) => Promise<T>): Promise<T> {
-  const profile = await mkdtemp(join(tmpdir(), "nagaya-chrome-"));
+  const profile = await mkdtemp(join(tmpdir(), "autodev-chrome-"));
   const chrome = spawn(
     chromePath,
     [

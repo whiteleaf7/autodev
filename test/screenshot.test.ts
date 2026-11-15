@@ -40,7 +40,9 @@ test("DevToolsActivePort からポートとパスを読む", () => {
 });
 
 const chromeInstalled = existsSync(
-  process.env.NAGAYA_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  process.env.VERIFY_CHROME ??
+    process.env.NAGAYA_CHROME ??
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 );
 
 test("ページを撮り、撮る前に入力とクリックを並べた順に行い、コンソールのエラーも返す", {
@@ -53,7 +55,7 @@ test("ページを撮り、撮る前に入力とクリックを並べた順に�
     `<button id="b" onclick="console.error('clicked ' + window.typed + ' ' + window.renamed); document.body.append(Object.assign(document.createElement('p'), { id: 'done' }))">b</button>`,
     '<script>console.error("boom")</script>',
   ].join("");
-  const dir = await mkdtemp(join(tmpdir(), "nagaya-verify-test-"));
+  const dir = await mkdtemp(join(tmpdir(), "autodev-verify-test-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const out = join(dir, "page.png");
   const result = await screenshot({
@@ -87,7 +89,7 @@ test("--mobile では、スクロールバーが幅を取らず、タッチの�
     '<meta name="viewport" content="width=device-width"><div style="height:3000px"></div>',
     "<script>console.error(document.documentElement.clientWidth, matchMedia('(pointer: coarse)').matches)</script>",
   ].join("");
-  const dir = await mkdtemp(join(tmpdir(), "nagaya-verify-test-"));
+  const dir = await mkdtemp(join(tmpdir(), "autodev-verify-test-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const shoot = (mobile: boolean) =>
     screenshot({
@@ -116,7 +118,7 @@ test("--dark では、prefers-color-scheme を dark にして描く", {
   skip: !chromeInstalled && "Chrome がない",
 }, async (t) => {
   const html = "<script>console.error(matchMedia('(prefers-color-scheme: dark)').matches)</script>";
-  const dir = await mkdtemp(join(tmpdir(), "nagaya-verify-test-"));
+  const dir = await mkdtemp(join(tmpdir(), "autodev-verify-test-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const shoot = (dark: boolean) =>
     screenshot({
@@ -143,7 +145,7 @@ test("--reduced-motion では動きを止める設定で描き、--later では�
     "<script>console.error(matchMedia('(prefers-reduced-motion: reduce)').matches);",
     "setInterval(() => { n.textContent = Number(n.textContent) + 1 }, 100)</script>",
   ].join("");
-  const dir = await mkdtemp(join(tmpdir(), "nagaya-verify-test-"));
+  const dir = await mkdtemp(join(tmpdir(), "autodev-verify-test-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const shoot = (reducedMotion: boolean, laterMs?: number) =>
     screenshot({
@@ -171,7 +173,7 @@ test("--lang では、ブラウザの言語と Intl の既定をその言語に�
 }, async (t) => {
   const html =
     "<script>console.error(navigator.languages.join(), new Intl.NumberFormat().resolvedOptions().locale)</script>";
-  const dir = await mkdtemp(join(tmpdir(), "nagaya-verify-test-"));
+  const dir = await mkdtemp(join(tmpdir(), "autodev-verify-test-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const shoot = (lang: string) =>
     screenshot({

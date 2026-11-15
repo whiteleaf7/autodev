@@ -1,4 +1,4 @@
-// pnpm --filter @nagaya/verify push: 承認待ちの Web Push（決定記録 0026）を、本物の push サービスまで通して確かめる。
+// pnpm --filter @repo/verify push: 承認待ちの Web Push（決定記録 0026）を、本物の push サービスまで通して確かめる。
 // 使い捨ての NAGAYA_HOME でデーモンを起動し、ヘッドレスの Chrome で端末を登録して「受け取る」を押し、
 // 本物の claude のセッションに承認の要るツールを使わせて、Chrome の Service Worker が出した通知を読む。
 // Chrome の購読は Google の push サービス（FCM）を通るので、ネットワークが要る。結果は .dev/verify/push-<日時>/
