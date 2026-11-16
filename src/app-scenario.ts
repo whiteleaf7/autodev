@@ -32,6 +32,8 @@ export type Step = {
   timeoutMs: number;
   // 確かめられたら殻の画面を撮る（.png の名前）
   snapshot?: string;
+  // 確かめられたら、会話の画面から OBSERVE を読み取る（judge に渡す）。これ以降に画面が変わっても読み取りは残る
+  observe?: boolean;
 };
 
 const fill = (selector: string, value: string) => `{
@@ -97,7 +99,13 @@ export function scenario(cwd: string, link: string | null, plugins: readonly str
       until: "return document.querySelector('.permission') === null;",
       timeoutMs: 15_000,
     },
-    { name: "ターンの終わりが画面に出る", until: exists(".entry.turn"), timeoutMs: 120_000, snapshot: "turn-end.png" },
+    {
+      name: "ターンの終わりが画面に出る",
+      until: exists(".entry.turn"),
+      timeoutMs: 120_000,
+      snapshot: "turn-end.png",
+      observe: true,
+    },
   ];
   if (openViewer) {
     steps.push(
@@ -127,7 +135,7 @@ export function scenario(cwd: string, link: string | null, plugins: readonly str
       },
     );
   }
-  if (link === null) return steps;
+  if (link === null) return [...steps, ...presetSteps()];
   const anchor = `.entry.assistant a[target=_blank][href=${JSON.stringify(link)}]`;
   return [
     ...steps,
@@ -139,6 +147,86 @@ export function scenario(cwd: string, link: string | null, plugins: readonly str
       until: `return location.hash.startsWith("#/sessions/") && document.querySelector(${JSON.stringify(anchor)}) !== null;`,
       timeoutMs: 5_000,
       snapshot: "link-clicked.png",
+    },
+    ...presetSteps(),
+  ];
+}
+
+// 最近使った組とブックマーク（T-150）。ターンのあとの画面で、recently の更新、ブックマークの追加、ドラッグでの並べ替え、
+// 画面を読み込み直したあとの順（デーモンに保存した順）を確かめる。読み込み直すと会話の画面は同じ形で戻らないので、
+// 会話の読み取りは、ターンの終わりの直後に済ませてある（observe）
+const BOOKMARKS = "[data-kind=bookmarks]";
+const bookmarkNames = `[...document.querySelectorAll("${BOOKMARKS} .preset-name")].map((element) => element.textContent)`;
+const VERIFY_ORDER = "verify-bookmark-order";
+
+// 描き直しは微小タスクで済むので、待つのは微小タスクだけにする（ウィンドウが隠れている間はタイマーが止まる）
+const settle = "for (let i = 0; i < 5; i += 1) await Promise.resolve();";
+
+export function presetSteps(): Step[] {
+  const toggle = ".bookmark-toggle";
+  return [
+    {
+      name: "新しいセッションの画面に、いま使った組が最近使った組として出る",
+      act: 'location.hash = "#/new";',
+      until: `return document.querySelectorAll("[data-kind=recently] .preset-pick").length === 1;`,
+      timeoutMs: 10_000,
+      snapshot: "presets-recently.png",
+    },
+    {
+      name: "いまの組をブックマークに足すと、ブックマークに 1 件出る",
+      act: click(`${toggle}[data-bookmarked=false]`),
+      until: `return document.querySelectorAll("${BOOKMARKS} .preset-row").length === 1;`,
+      timeoutMs: 10_000,
+    },
+    {
+      name: "モデルを変えると、別の組として足せる",
+      act: `{
+        const select = document.querySelector("form.new [name=model]");
+        select.value = select.options[1].value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }`,
+      until: exists(`${toggle}[data-bookmarked=false]`),
+      timeoutMs: 5_000,
+    },
+    {
+      name: "足すと、ブックマークが 2 件並ぶ",
+      act: click(toggle),
+      until: `return document.querySelectorAll("${BOOKMARKS} .preset-row").length === 2;`,
+      timeoutMs: 10_000,
+    },
+    {
+      name: "ハンドルをドラッグして、1 件目を 2 件目の下へ動かすと、並びが入れ替わる",
+      act: `{
+        window.verifyBefore = ${bookmarkNames};
+        const handle = document.querySelector("${BOOKMARKS} .preset-handle");
+        const rows = [...document.querySelectorAll("${BOOKMARKS} .preset-row")].map((row) => row.getBoundingClientRect());
+        const box = handle.getBoundingClientRect();
+        const x = box.x + box.width / 2;
+        const fire = (type, y) =>
+          handle.dispatchEvent(new PointerEvent(type, { pointerId: 1, pointerType: "mouse", button: 0, clientX: x, clientY: y, bubbles: true }));
+        fire("pointerdown", box.y + box.height / 2);
+        ${settle}
+        fire("pointermove", rows[1].bottom - 2);
+        ${settle}
+        fire("pointerup", rows[1].bottom - 2);
+      }`,
+      until: `{
+        const names = ${bookmarkNames};
+        return names.length === 2 && names[0] === window.verifyBefore[1] && names[1] === window.verifyBefore[0];
+      }`,
+      timeoutMs: 10_000,
+      snapshot: "presets-bookmarks.png",
+    },
+    {
+      name: "画面を読み込み直しても、並べ替えた順のまま出る",
+      act: `sessionStorage.setItem(${JSON.stringify(VERIFY_ORDER)}, JSON.stringify(${bookmarkNames}));
+        setTimeout(() => location.reload(), 50);`,
+      until: `{
+        const expected = sessionStorage.getItem(${JSON.stringify(VERIFY_ORDER)});
+        return window.verifyBefore === undefined && document.querySelector('.app[data-connection="connected"]') !== null && JSON.stringify(${bookmarkNames}) === expected;
+      }`,
+      timeoutMs: 30_000,
+      snapshot: "presets-reopened.png",
     },
   ];
 }

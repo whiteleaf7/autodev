@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseAppArgs } from "../src/app-options.ts";
-import { judge, type Observed, PROOF_FILE, PROOF_TEXT, prompt, scenario } from "../src/app-scenario.ts";
+import { judge, type Observed, PROOF_FILE, PROOF_TEXT, presetSteps, prompt, scenario } from "../src/app-scenario.ts";
 
 const passing: Observed = {
   tools: [{ name: "Write", status: "done" }],
@@ -44,7 +44,7 @@ test("筋書きは作業ディレクトリを入れ、承認の前と終わり�
   assert.ok(steps.some((step) => step.act?.includes('"/tmp/work"')));
   assert.deepEqual(
     steps.flatMap((step) => (step.snapshot ? [step.snapshot] : [])),
-    ["permission.png", "turn-end.png"],
+    ["permission.png", "turn-end.png", "presets-recently.png", "presets-bookmarks.png", "presets-reopened.png"],
   );
   assert.doesNotMatch(prompt(null), /link/);
 });
@@ -62,7 +62,7 @@ test("リンクを渡すと、返事にそのリンクを入れさせ、ター�
   const link = "http://127.0.0.1:4321/nagaya-verify-link/abc";
   assert.ok(prompt(link).includes(`[verification link](${link})`));
   const steps = scenario("/tmp/work", link, []);
-  const afterTurn = steps.slice(steps.findIndex((step) => step.snapshot === "turn-end.png") + 1);
+  const afterTurn = steps.slice(steps.findIndex((step) => step.snapshot === "turn-end.png") + 1, -presetSteps().length);
   assert.equal(afterTurn.length, 2);
   assert.ok(afterTurn.every((step) => step.until?.includes(link)));
   assert.ok(afterTurn[1]?.act?.includes(".click()"));

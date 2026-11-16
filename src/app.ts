@@ -185,7 +185,11 @@ async function main(): Promise<boolean> {
 
     const runners = scenario(cwd, receiver?.url ?? null, plugins, options.openViewer).map((step) => ({
       name: step.name,
-      run: () => runStep(shell, step, out),
+      run: async () => {
+        const result = await runStep(shell, step, out);
+        if (step.observe) observed = Observed.parse(await shell.evaluate(OBSERVE));
+        return result;
+      },
     }));
     if (receiver) runners.push({ name: ARRIVAL_STEP, run: () => waitForArrival(receiver) });
     for (const runner of runners) {
@@ -208,7 +212,7 @@ async function main(): Promise<boolean> {
         break;
       }
     }
-    observed = Observed.parse(await shell.evaluate(OBSERVE));
+    observed ??= Observed.parse(await shell.evaluate(OBSERVE));
     await writeFile(join(out, "transcript.txt"), observed.transcript);
     if (results.every((result) => result.ok)) {
       const proofFile = options.openViewer ? PROOF_MD_FILE : PROOF_FILE;
