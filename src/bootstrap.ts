@@ -11,7 +11,6 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -175,7 +174,7 @@ export function renderAgentGuide(name: string, title: string): string {
   return `# ${title} (${name})
 
 **${title}**（リポジトリ名 \`${name}\`）。AI エージェント（Claude Code、Codex、Gemini など）が自律して開発を進めるための基盤（開発ボード・MCP / CLI・ハーネス・画面確認ツール）を備えたプロジェクト。
-エージェント向けの手引きは \`AGENTS.md\` と \`CLAUDE.md\`（同一内容のリンク）に置いてある。
+エージェント向けの手引きは \`AGENTS.md\` に置いてある。\`CLAUDE.md\` は \`@AGENTS.md\` と書くだけで、同じ内容を読み込む。
 
 ## まず読む
 
@@ -244,7 +243,7 @@ export function renderAgentGuide(name: string, title: string): string {
 - 作業者の起動:
   - Claude Code のサブエージェントなら \`isolation: "worktree"\`、\`run_in_background: true\`
   - Codex や他のエージェントなら \`git worktree add .worktrees/<名前> -b <ブランチ>\` で worktree を分けて動かす
-  - 渡すのはタスク ID と「AGENTS.md（CLAUDE.md）の『作業者の手順』に従う」だけ。説明はボードにあるので、プロンプトに書き写さない。作業者には、実装・確認・コミット・取り込みまでを任せる
+  - 渡すのはタスク ID と「AGENTS.md の『作業者の手順』に従う」だけ。説明はボードにあるので、プロンプトに書き写さない。作業者には、実装・確認・コミット・取り込みまでを任せる
 - 報告を受けたら、\`list_tasks\` を取り直して次を選ぶ。\`get_overview\` の \`git.uncommittedDecisions\` に決定記録が残っていれば、報告に無くても、自分のブランチに移して \`pnpm land\` で取り込む。作業者が \`blocked\` にしたものは、理由をユーザーへの最後の報告に含める
 
 ### 作業者の手順
@@ -371,7 +370,7 @@ pnpm test
 
 ## ディレクトリ構成
 
-- \`AGENTS.md\` / \`CLAUDE.md\`: エージェント向けの開発手引き（Codex / Gemini / Claude Code 共通）
+- \`AGENTS.md\`（\`CLAUDE.md\` は \`@AGENTS.md\` で読み込むだけ）: エージェント向けの開発手引き（Codex / Gemini / Claude Code 共通）
 - \`.mcp.json\` / \`.claude/\` / \`.codex/\`: 各エージェント向けの MCP サーバ（\`devboard\`）とフックの設定
 - \`apps/\`: アプリケーション本体
 - \`packages/\`: 共有パッケージ
@@ -417,8 +416,8 @@ ${title}（\`${name}\`）のリポジトリ構成と、AI 自律駆動を支え�
 
 \`\`\`text
 ${name}/
-  AGENTS.md             # エージェント共通の手引き（CLAUDE.md へのシンボリックリンク）
-  CLAUDE.md             # エージェント共通の手引き
+  AGENTS.md             # エージェント共通の手引き（実体）
+  CLAUDE.md             # AGENTS.md を読み込むだけ（@AGENTS.md）
   apps/                 # アプリケーション本体を置く場所
   packages/             # 共有パッケージを置く場所
   spikes/               # 使い捨ての技術検証コードを置く場所
@@ -463,7 +462,7 @@ ${name}/
 export function renderVerificationDoc(): string {
   return `# 動かして確かめる
 
-AI がアプリを動かし、結果を自分で確かめるための手段と準備。CLAUDE.md の「判断と確認は AI が行う」を支える（決定記録 0008）。
+AI がアプリを動かし、結果を自分で確かめるための手段と準備。AGENTS.md の「判断と確認は AI が行う」を支える（決定記録 0008）。
 
 ## 使える手段
 
@@ -599,10 +598,8 @@ export function writeBootstrapFiles(opts: BootstrapOptions): void {
   writeFileSync(join(targetDir, "dev/harness/history.jsonl"), "");
 
   writeFileSync(join(targetDir, "package.json"), renderPackageJson(name, title));
-  writeFileSync(join(targetDir, "CLAUDE.md"), renderAgentGuide(name, title));
-  if (!existsSync(join(targetDir, "AGENTS.md"))) {
-    symlinkSync("CLAUDE.md", join(targetDir, "AGENTS.md"));
-  }
+  writeFileSync(join(targetDir, "AGENTS.md"), renderAgentGuide(name, title));
+  writeFileSync(join(targetDir, "CLAUDE.md"), "@AGENTS.md\n");
   writeFileSync(join(targetDir, "README.md"), renderReadme(name, title));
   writeFileSync(join(targetDir, "docs/product.md"), renderProductDoc(name, title));
   writeFileSync(join(targetDir, "docs/architecture.md"), renderArchitectureDoc(name, title));

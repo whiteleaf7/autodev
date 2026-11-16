@@ -15,7 +15,7 @@ const repoFiles = {
 };
 
 const checksOf = (doc: string, extra: Record<string, string> = {}) =>
-  checkDocs(memoryRepo({ ...repoFiles, "CLAUDE.md": doc, ...extra })).map((p) => p.check);
+  checkDocs(memoryRepo({ ...repoFiles, "AGENTS.md": doc, ...extra })).map((p) => p.check);
 
 test("無い pnpm スクリプトへの言及を見つける", () => {
   assert.deepEqual(checksOf("テストは `pnpm test`、ボードは `pnpm board`\n"), []);

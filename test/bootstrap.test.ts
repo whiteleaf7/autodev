@@ -35,8 +35,8 @@ test("writeBootstrapFiles はマルチエージェント対応の基盤一式を
     filesOnly: true,
   });
 
-  assert.equal(lstatSync(join(dir, "AGENTS.md")).isSymbolicLink(), true);
-  assert.equal(readFileSync(join(dir, "AGENTS.md"), "utf8"), readFileSync(join(dir, "CLAUDE.md"), "utf8"));
+  assert.equal(lstatSync(join(dir, "AGENTS.md")).isSymbolicLink(), false);
+  assert.equal(readFileSync(join(dir, "CLAUDE.md"), "utf8"), "@AGENTS.md\n");
   assert.equal(existsSync(join(dir, ".codex/config.toml")), true);
   assert.equal(existsSync(join(dir, ".codex/hooks.json")), true);
   assert.equal(existsSync(join(dir, ".claude/settings.json")), true);
