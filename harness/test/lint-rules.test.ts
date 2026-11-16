@@ -6,7 +6,7 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-const ROOT = resolve(import.meta.dirname, "../../..");
+const ROOT = resolve(import.meta.dirname, "../..");
 const RULE = /\[\w+\/([\w-]+)\(([\w-]+)\)\]$/;
 
 // リポジトリの設定の写しで、一時ディレクトリのファイルを lint する。

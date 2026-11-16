@@ -1,5 +1,5 @@
 {
-  "name": "@repo/harness",
+  "name": "@autodev/harness",
   "private": true,
   "type": "module",
   "scripts": {

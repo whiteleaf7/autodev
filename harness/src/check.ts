@@ -3,6 +3,7 @@
 //   node tools/harness/src/check.ts            作業ツリーを検査する
 //   node tools/harness/src/check.ts --staged   index（コミットされる中身）を一時ディレクトリに写して検査する。pre-commit が使う
 
+import { projectRoot } from "./project-root.ts";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
@@ -17,7 +18,7 @@ import { withoutGitEnv } from "./env.ts";
 import { loadRepo, type Problem, type Repo } from "./repo.ts";
 import { LINKED_MODULES_ENV, snapshotIndex } from "./snapshot.ts";
 
-const ROOT = resolve(import.meta.dirname, "../../..");
+const ROOT = projectRoot();
 
 export function formatProblem({ check, file, line, message }: Problem): string {
   return `${file}${line ? `:${line}` : ""}: [${check}] ${message}`;

@@ -1,0 +1,29 @@
+{
+  "name": "autodev",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.0.8",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "autodev": "bin/autodev.ts"
+  },
+  "scripts": {
+    "link-bin": "mkdir -p ~/.local/bin && ln -sf \"$PWD/bin/autodev.ts\" ~/.local/bin/autodev",
+    "typecheck": "tsc --noEmit && pnpm -r typecheck",
+    "test": "node --test --test-timeout=120000 test/*.test.ts && pnpm -r test",
+    "lint": "oxlint",
+    "format": "biome format --write"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.7",
+    "oxlint": "1.93.0",
+    "oxlint-tsgolint": "7.0.2007",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

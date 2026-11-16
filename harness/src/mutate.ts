@@ -2,6 +2,7 @@
 // 止められなかった変異（生き残り）は、テストが確かめていない振る舞いを指している。
 //   node src/mutate.ts [対象のファイル...]      既定は tools/ の src と public
 
+import { projectRoot } from "./project-root.ts";
 import { readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { join, resolve } from "node:path";
@@ -10,7 +11,7 @@ import { loadRepo, packageDirs } from "./repo.ts";
 import { cloneTemplate, createTemplate, removeDir, run, TIMED_OUT } from "./sandbox.ts";
 import { lineOf, scan } from "./source.ts";
 
-const ROOT = resolve(import.meta.dirname, "../../..");
+const ROOT = projectRoot();
 
 type Operator = { label: string; pattern: RegExp; replace: (match: string) => string };
 

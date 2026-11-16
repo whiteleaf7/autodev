@@ -3,12 +3,13 @@
 //   node tools/harness/src/rules-sync.ts --from <common.md>    先に、このプロジェクトの common.md を <common.md> の中身にしてから、区画を作り直す
 //                                                               （init-autodev スキルの base/ からの update）
 
+import { projectRoot } from "./project-root.ts";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { COMMON_RULES_FILE } from "./checks/rules.ts";
 import { replaceRegion } from "./rules-region.ts";
 
-const ROOT = resolve(import.meta.dirname, "../../..");
+const ROOT = projectRoot();
 
 export function syncRules(root: string, from?: string): string {
   const commonPath = join(root, COMMON_RULES_FILE);

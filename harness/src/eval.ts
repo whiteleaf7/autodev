@@ -2,6 +2,7 @@
 //   node src/eval.ts [--set public|heldout] [--family <名前>] [--record] [--validate]
 // heldout は集計だけを出す（改善する側が中身を知らないことが、最終評価の前提のため）。
 
+import { projectRoot } from "./project-root.ts";
 import { execFileSync } from "node:child_process";
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
@@ -12,7 +13,7 @@ import { loadScenarios, type Scenario } from "./scenario.ts";
 import { applyEdits, cloneTemplate, createTemplate, removeDir, run } from "./sandbox.ts";
 import { formatSummary, summarize, type Outcome, type Result } from "./score.ts";
 
-const ROOT = resolve(import.meta.dirname, "../../..");
+const ROOT = projectRoot();
 const RECALL_TOP = 3;
 
 // ゲートのコマンドは、編集を当てる前のリポジトリが決める（ゲート自体を消す編集で、基準が緩まないように）

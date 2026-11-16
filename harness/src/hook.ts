@@ -3,13 +3,14 @@
 //   node tools/harness/src/hook.ts commit-msg <ファイル>   コミットメッセージの決まりを確かめる
 //   node tools/harness/src/hook.ts pre-push                main への push を止める
 
+import { projectRoot } from "./project-root.ts";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { checkMessage, filesToFormat, pushesToMain } from "./commit.ts";
 import { readTaskIds } from "./devboard-cli.ts";
 
-const ROOT = resolve(import.meta.dirname, "../../..");
+const ROOT = projectRoot();
 
 function git(args: string[], input?: string): string {
   const { stdout } = spawnSync("git", args, { cwd: ROOT, encoding: "utf8", input });
@@ -56,7 +57,7 @@ function preCommit(): void {
   }
   formatStaged(staged);
   // 作業ツリーではなく、コミットされる中身でゲートを通す。index の場所（GIT_INDEX_FILE）を引き継ぐため、環境変数はそのまま渡す
-  const { status } = spawnSync("node", ["tools/harness/src/check.ts", "--staged"], { cwd: ROOT, stdio: "inherit" });
+  const { status } = spawnSync(process.execPath, [join(import.meta.dirname, "check.ts"), "--staged"], { cwd: ROOT, stdio: "inherit" });
   if (status !== 0) process.exit(status ?? 1);
 }
 

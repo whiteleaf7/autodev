@@ -1,11 +1,12 @@
 // Claude Code のセッションの始めに呼ばれる（.claude/settings.json の SessionStart フック）。
 // roborev の設定やフックに直すべきことがあれば、標準出力に書いて AI のコンテキストに入れる。何も無ければ黙る。
 
+import { projectRoot } from "./project-root.ts";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { roborevNotices } from "./roborev.ts";
 
-const ROOT = resolve(import.meta.dirname, "../../..");
+const ROOT = projectRoot();
 
 const doctor = spawnSync("roborev", ["doctor", "--json"], {
   cwd: ROOT,

@@ -1,0 +1,53 @@
+# autodev
+
+AI 自律開発の実行基盤。コミット前のゲート（`autodev check`）、git のフック、PR での取り込み（`autodev land`）、ハーネスの評価（`autodev eval`）、Chrome を操作する検証ツールを、`autodev` コマンド 1 つにまとめたもの。複数のプロジェクトが、このリポジトリを 1 つだけ共有して使う。開発ボードは別のリポジトリ（devboard）にある。主な読み手は AI エージェント。
+
+## 導入する（AI 向けの手順）
+
+上から順に実行し、各手順の確認が通ってから次へ進む。
+
+1. 前提を確かめる。`git --version` と `node --version`（24 以上）と `pnpm --version` が通ること。pnpm が無ければ `corepack enable`
+2. 入れる
+   ```sh
+   git clone https://github.com/whiteleaf7/autodev.git ~/github/autodev
+   cd ~/github/autodev
+   pnpm install
+   pnpm run link-bin   # ~/.local/bin/autodev に置く
+   ```
+3. 確かめる。`autodev --help` がコマンドの一覧を出すこと。`command not found` なら `~/.local/bin` が PATH に無い。シェルの設定に `export PATH="$HOME/.local/bin:$PATH"` を足し、ユーザーにシェルを開き直すよう頼む（絶対パス `~/.local/bin/autodev` なら今すぐ動く）
+
+更新は `cd ~/github/autodev && git pull && pnpm install`。このコマンドは、入れたすべてのプロジェクトに同時に効く。
+
+## 使う
+
+プロジェクトのディレクトリ（サブディレクトリや linked worktree でもよい）で打つ。対象は、そのディレクトリの git の作業ツリー。
+
+| コマンド                 | することと                                                                 |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `autodev check`          | ゲート。評価の緩め・規約・記録・ドキュメント・共通の規約の検査のあと、lint・型チェック・テスト。`--staged` で index を検査する |
+| `autodev hook <名前>`    | git のフックの本体（`pre-commit`・`commit-msg`・`pre-push`）               |
+| `autodev land`           | 作業ブランチを、rebase → ゲート → PR → CI → マージで main に取り込む        |
+| `autodev prune`          | 取り込み済みの作業用 worktree を片付ける                                   |
+| `autodev eval`           | ハーネスの評価（`--set public` か `heldout`、`--family`、`--validate`、`--record`） |
+| `autodev mutate`         | 変異テスト                                                                 |
+| `autodev rules-sync`     | AGENTS.md の共通の規約の区画を、共通の規約の本文で作り直す                 |
+| `autodev stop-hook`      | エージェントの Stop フックの本体                                           |
+| `autodev roborev-doctor` | roborev の状態を調べる                                                     |
+| `autodev screenshot`     | ヘッドレス Chrome で Web の画面を撮る                                      |
+
+## 構成
+
+- `harness/`: ゲート・フック・取り込み・評価の本体（`@autodev/harness`）。テストもここにある
+- `verify/`: Chrome を DevTools Protocol で操作する検証ツール（`@autodev/verify`）。画面の撮影と、Web の画面のテストの補助。ほかのプロジェクトのテストが、パッケージとして取り込める
+- `githooks/`: プロジェクトの `.githooks/` に置くフックの雛形（`autodev hook` を呼ぶだけ）
+- `bin/autodev.ts`、`src/commands.ts`: サブコマンドの入口
+
+## 開発する
+
+```sh
+pnpm typecheck
+pnpm test
+pnpm lint
+```
+
+このコマンドは全プロジェクトで同時に使われる。変更は、テストを足してから入れる。評価のシナリオ（公開・heldout）と設定は、各プロジェクトのデータなので、このリポジトリには入れない（heldout は特に、公開しない）。
