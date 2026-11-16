@@ -92,6 +92,7 @@ const ROOT_FILES = [
   "biome.json",
   "paseo.json",
   ".mcp.json",
+  ".devboard.json",
   ".claude/settings.json",
   ".codex/config.toml",
   ".codex/hooks.json",
