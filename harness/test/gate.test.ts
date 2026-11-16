@@ -47,6 +47,15 @@ test("eval/ の下の見本のテストは、パッケージのテストの件�
   );
 });
 
+test("check スクリプトを、共有の autodev check に替えるのは通し、無効化する書き方は止める", () => {
+  const files = (check: string) => ({ "package.json": JSON.stringify({ scripts: { check, typecheck: "tsc", test: "node --test" } }) });
+  const base = files("node tools/harness/src/check.ts");
+  assert.deepEqual(checksOf(files("autodev check"), base), []);
+  assert.deepEqual(checksOf(files("autodev check --staged"), base), []);
+  assert.ok(checksOf(files("echo skipped"), base).includes("neutered-script"), "別のものに替えるのは止める");
+  assert.ok(checksOf(files("autodev check || true"), base).includes("neutered-script"), "失敗を無視する形は止める");
+});
+
 test("テストが基点より減ったら止め、パッケージの中での移動は通す", () => {
   const manifest = { "tools/x/package.json": `{"scripts":{"typecheck":"tsc --noEmit","test":"node --test"}}` };
   const base = { ...manifest, "tools/x/test/a.test.ts": passing, "tools/x/test/b.test.ts": passing };

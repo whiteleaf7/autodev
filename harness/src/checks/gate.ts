@@ -196,6 +196,8 @@ function scripts(repo: Repo): Problem[] {
         add(`スクリプト ${name} が、何もしない・失敗を無視する形になっている`);
       if (!dir && /(^|\s)(--filter|-F)(\s|=)/.test(script))
         add(`スクリプト ${name} が、一部のパッケージだけに絞っている`);
+      // ゲート本体の呼び出しを、共有の autodev コマンドに替えるのは、緩めではない（検査の中身は autodev が持つ）。無効化する書き方は、上の NEUTERED が止める
+      if (name === "check" && /(^|\s)autodev check(\s|$)/.test(script)) continue;
       const tokens = script.split(/\s+/);
       const dropped = (before[name] ?? "").split(/\s+/).filter((token) => token && !tokens.includes(token));
       if (dropped.length) add(`スクリプト ${name} から ${dropped.join(" ")} が消えている`);
