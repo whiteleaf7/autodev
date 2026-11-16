@@ -36,6 +36,17 @@ test("パッケージをディレクトリごと消したときは、テスト�
   ]);
 });
 
+test("eval/ の下の見本のテストは、パッケージのテストの件数に数えない", () => {
+  const manifest = { "tools/x/package.json": `{"scripts":{"typecheck":"tsc --noEmit","test":"node --test"}}` };
+  const base = { ...manifest, "tools/x/test/a.test.ts": passing, "tools/x/eval/fixture/lib/test/b.test.ts": passing };
+  assert.deepEqual(checksOf({ ...manifest, "tools/x/test/a.test.ts": passing }, base), [], "見本を消しても止めない");
+  // 本物のテストを eval/ に移して件数を隠す抜け道は、塞がる
+  assert.deepEqual(
+    checksOf({ ...manifest, "tools/x/eval/a.test.ts": passing }, { ...manifest, "tools/x/test/a.test.ts": passing }),
+    ["removed-test"],
+  );
+});
+
 test("テストが基点より減ったら止め、パッケージの中での移動は通す", () => {
   const manifest = { "tools/x/package.json": `{"scripts":{"typecheck":"tsc --noEmit","test":"node --test"}}` };
   const base = { ...manifest, "tools/x/test/a.test.ts": passing, "tools/x/test/b.test.ts": passing };

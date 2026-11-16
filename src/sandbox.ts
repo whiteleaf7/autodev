@@ -25,19 +25,33 @@ function git(cwd: string, args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
-// 評価のシナリオが見本にしているコード。切り出す前の devboard（決定記録 0044）を固定して持ち、複製では tools/devboard/ に置く。
-// 固定してあるので、devboard 本体が変わっても、シナリオが探す文字列は変わらない
-const FIXTURE_PREFIX = "tools/harness/eval/fixture/devboard/";
+// 評価のシナリオが見本にしているコード。切り出す前の devboard を、devboard のリポジトリの固定したコミットから取り出して、複製の tools/devboard/ に置く。
+// コピーを持たず、コミットは変わらない（devboard の履歴は書き換えない）ので、devboard 本体が変わっても、シナリオが探す文字列は変わらない
+export const FIXTURE_COMMIT = "8e7ce0cd8804e90c3bab1f617d6951dcc3dac3e8";
 const FIXTURE_DEST = "tools/devboard/";
 
-function overlayFixture(root: string, template: string, files: string[]): void {
-  for (const file of files.filter((f) => f.startsWith(FIXTURE_PREFIX))) {
-    const to = join(template, FIXTURE_DEST, file.slice(FIXTURE_PREFIX.length));
-    mkdirSync(dirname(to), { recursive: true });
-    cpSync(join(root, file), to, { verbatimSymlinks: true });
+// home のリポジトリの commit の中身を、dest に展開する
+export function extractFixture(home: string, commit: string, dest: string): void {
+  let archive: Buffer;
+  try {
+    archive = execFileSync("git", ["-C", home, "archive", "--format=tar", commit], {
+      maxBuffer: 256 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (e) {
+    throw new Error(
+      `評価の見本の devboard のコミット ${commit} を ${home} から取り出せない。浅い clone なら git fetch --unshallow で履歴を取る（${e instanceof Error ? e.message.split("\n")[0] : String(e)}）`,
+    );
   }
+  mkdirSync(dest, { recursive: true });
+  execFileSync("tar", ["-x", "-C", dest], { input: archive });
+}
+
+function overlayFixture(template: string): void {
+  const home = realpathSync(devboardHome());
+  extractFixture(home, FIXTURE_COMMIT, join(template, FIXTURE_DEST));
   // 見本の依存は、いま入れてある devboard のものを使う（同じ依存で動くコードなので）
-  linkPackageModules(realpathSync(devboardHome()), join(template, FIXTURE_DEST), ["package.json"]);
+  linkPackageModules(home, join(template, FIXTURE_DEST), ["package.json"]);
 }
 
 export function createTemplate(repoRoot: string): string {
@@ -51,7 +65,7 @@ export function createTemplate(repoRoot: string): string {
     cpSync(from, join(template, file), { verbatimSymlinks: true });
   }
   linkPackageModules(root, template, files);
-  overlayFixture(root, template, files);
+  overlayFixture(template);
   git(template, ["init", "-q"]);
   // .gitignore の「node_modules/」は、リンクを含むディレクトリの中身までは隠さない場合に備える
   mkdirSync(join(template, ".git", "info"), { recursive: true });

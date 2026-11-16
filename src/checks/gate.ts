@@ -77,8 +77,11 @@ function skippedTests(repo: Repo): Problem[] {
 const removedWhole = (repo: Repo, dir: string) => dir !== "" && !repo.files.some((f) => f.startsWith(`${dir}/`));
 
 function removedTests(repo: Repo, base: Tree): Problem[] {
+  // eval/ の下は、評価のシナリオと、その見本のコード（見本のテストはパッケージの test では走らない）なので、数えない
   const count = (tree: Tree, dir: string) =>
-    tree.files.filter((f) => isTestFile(f) && f.startsWith(`${dir}/`)).reduce((n, f) => n + testCases(tree.read(f)), 0);
+    tree.files
+      .filter((f) => isTestFile(f) && f.startsWith(`${dir}/`) && !f.startsWith(`${dir}/eval/`))
+      .reduce((n, f) => n + testCases(tree.read(f)), 0);
   return packageDirs(base)
     .filter((dir) => dir && !removedWhole(repo, dir))
     .flatMap((dir) => {
