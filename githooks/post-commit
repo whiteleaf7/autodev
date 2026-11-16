@@ -1,0 +1,11 @@
+#!/bin/sh
+# roborev post-commit hook v5 - auto-reviews every commit
+# 上の行は roborev が自分のフックと見なす印。消すと roborev が「古い」と警告する。ROBOREV= の絶対パスも、roborev doctor が確かめる。
+# コミットのあと、roborev が入っていればレビューを積む。ゲートではないので、失敗してもコミットは止めない（決定記録 0012）。
+# ハーネスの評価は複製したリポジトリでコミットするので、HARNESS_SKIP_REVIEW を付けてレビューを積まない。
+[ -n "${HARNESS_SKIP_REVIEW:-}${NAGAYA_SKIP_REVIEW:-}" ] && exit 0
+ROBOREV="/opt/homebrew/bin/roborev"
+[ -x "$ROBOREV" ] || ROBOREV=$(command -v roborev 2>/dev/null) || exit 0
+# フックから起動されたデーモンにも届くように、ここでも匿名の利用統計を切る
+export ROBOREV_TELEMETRY_ENABLED=0
+"$ROBOREV" post-commit || true
