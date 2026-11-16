@@ -35,7 +35,7 @@ async function judge(scenario: Scenario, template: string, gate: string, boardSn
   const boardFile = `${dir}.board.sqlite`;
   copyFileSync(boardSnapshot, boardFile);
   // シナリオのコミットで .githooks/post-commit が roborev のレビューを積まないように
-  const env = { DEVBOARD_DB: boardFile, NAGAYA_BOARD: boardFile, HARNESS_SKIP_REVIEW: "1", NAGAYA_SKIP_REVIEW: "1" };
+  const env = { DEVBOARD_DB: boardFile, HARNESS_SKIP_REVIEW: "1" };
   try {
     const problem = applyEdits(dir, scenario.edits);
     if (problem) return { scenario, outcome: "inapplicable", detail: problem };

@@ -41,7 +41,6 @@ test("DevToolsActivePort からポートとパスを読む", () => {
 
 const chromeInstalled = existsSync(
   process.env.VERIFY_CHROME ??
-    process.env.NAGAYA_CHROME ??
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 );
 

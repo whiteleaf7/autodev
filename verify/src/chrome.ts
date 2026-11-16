@@ -10,7 +10,6 @@ import { parseDevToolsActivePort } from "./options.ts";
 
 const chromePath =
   process.env.VERIFY_CHROME ??
-  process.env.NAGAYA_CHROME ??
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 type CdpEvent = { method: string; params: Record<string, unknown>; sessionId?: string };

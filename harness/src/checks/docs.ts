@@ -61,7 +61,7 @@ const PNPM_FLAGS = new Set([
 const PLACEHOLDER = /[<>*…{}]|\.\.\.|N{3,}/;
 const REPO_PATH = /^(?:\.\/)?((?:docs|tools|dev|spikes|apps|packages|\.claude|\.codex|\.githooks)\/[\w@.\-/[\]]*)$/;
 const TOOL_NAME =
-  /^(?:mcp__(?:devboard|nagaya-dev)__)?((?:get|list|create|update|set|open|add|search|delete|remove|record|find)_[a-z_]+)$/;
+  /^(?:mcp__devboard__)?((?:get|list|create|update|set|open|add|search|delete|remove|record|find)_[a-z_]+)$/;
 
 type Snippet = { text: string; line: number };
 
@@ -235,7 +235,7 @@ function checkConfig(repo: Repo, facts: Facts): Problem[] {
   const settingsText = repo.read(".claude/settings.json");
   const settings = parseJson(settingsText);
   if (settingsText !== null && facts.tools) {
-    for (const m of settingsText.matchAll(/mcp__(?:devboard|nagaya-dev)__([\w-]+)/g)) {
+    for (const m of settingsText.matchAll(/mcp__devboard__([\w-]+)/g)) {
       if (!facts.tools.has(m[1]!))
         problems.push({
           check: "missing-mcp-tool",
