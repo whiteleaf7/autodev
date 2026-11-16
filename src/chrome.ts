@@ -15,14 +15,26 @@ const chromePath =
 
 type CdpEvent = { method: string; params: Record<string, unknown>; sessionId?: string };
 
+// SIGTERM で終わらない Chrome を待ち続けないための猶予
+const KILL_GRACE_MS = 3_000;
+
 class Cdp {
   private nextId = 1;
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
   readonly events: CdpEvent[] = [];
   private readonly socket: WebSocket;
+  private readonly timeoutMs: number;
 
-  private constructor(socket: WebSocket) {
+  private constructor(socket: WebSocket, timeoutMs: number) {
     this.socket = socket;
+    this.timeoutMs = timeoutMs;
+    // 接続が切れたら、返事を待っている要求は二度と答えが来ないので、すべて失敗にする
+    const failPending = () => {
+      for (const waiter of this.pending.values()) waiter.reject(new Error("DevTools の接続が切れた"));
+      this.pending.clear();
+    };
+    socket.addEventListener("close", failPending);
+    socket.addEventListener("error", failPending);
     socket.addEventListener("message", (event) => {
       const message = JSON.parse(String(event.data)) as {
         id?: number;
@@ -40,20 +52,57 @@ class Cdp {
     });
   }
 
-  static async connect(url: string): Promise<Cdp> {
+  static async connect(url: string, timeoutMs: number): Promise<Cdp> {
     const socket = new WebSocket(url);
     await new Promise((resolve, reject) => {
-      socket.addEventListener("open", resolve, { once: true });
-      socket.addEventListener("error", () => reject(new Error(`DevTools に接続できない: ${url}`)), { once: true });
+      const timer = setTimeout(
+        () => reject(new Error(`DevTools への接続が ${timeoutMs}ms で終わらない: ${url}`)),
+        timeoutMs,
+      );
+      socket.addEventListener(
+        "open",
+        (event) => {
+          clearTimeout(timer);
+          resolve(event);
+        },
+        { once: true },
+      );
+      socket.addEventListener(
+        "error",
+        () => {
+          clearTimeout(timer);
+          reject(new Error(`DevTools に接続できない: ${url}`));
+        },
+        { once: true },
+      );
+    }).catch((error: unknown) => {
+      socket.close();
+      throw error;
     });
-    return new Cdp(socket);
+    return new Cdp(socket, timeoutMs);
   }
 
   send<T>(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<T> {
+    if (this.socket.readyState !== WebSocket.OPEN) {
+      return Promise.reject(new Error(`DevTools の接続が切れていて ${method} を送れない`));
+    }
     const id = this.nextId++;
-    this.socket.send(JSON.stringify({ id, method, params, sessionId }));
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve: (v) => resolve(v as T), reject });
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`DevTools の ${method} に ${this.timeoutMs}ms 経っても返事が来ない`));
+      }, this.timeoutMs);
+      this.pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timer);
+          resolve(value as T);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
+      this.socket.send(JSON.stringify({ id, method, params, sessionId }));
     });
   }
 
@@ -130,7 +179,7 @@ export async function withChrome<T>(timeoutMs: number, use: (browser: Browser) =
     const { port, browserPath } = parseDevToolsActivePort(
       await waitForFile(join(profile, "DevToolsActivePort"), timeoutMs),
     );
-    const cdp = await Cdp.connect(`ws://127.0.0.1:${port}${browserPath}`);
+    const cdp = await Cdp.connect(`ws://127.0.0.1:${port}${browserPath}`, timeoutMs);
     try {
       return await use({
         grant: async (origin, permissions) => {
@@ -169,9 +218,15 @@ export async function withChrome<T>(timeoutMs: number, use: (browser: Browser) =
       cdp.close();
     }
   } finally {
-    const exited = once(chrome, "exit");
-    chrome.kill();
-    await exited;
+    // 途中で落ちた Chrome の exit は、あとから待っても二度と来ない
+    if (chrome.exitCode === null && chrome.signalCode === null) {
+      const exited = once(chrome, "exit");
+      chrome.kill();
+      // SIGTERM を無視して居座る Chrome を、いつまでも待たない
+      const forceKill = setTimeout(() => chrome.kill("SIGKILL"), KILL_GRACE_MS);
+      await exited;
+      clearTimeout(forceKill);
+    }
     // 本体が終わっても、Chrome の補助プロセスが少しの間プロファイルに書き続け、ENOTEMPTY で消せないことがある（T-038）
     await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
