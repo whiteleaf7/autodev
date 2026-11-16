@@ -179,12 +179,14 @@ export function presetSteps(): Step[] {
       timeoutMs: 10_000,
     },
     {
-      name: "モデルを変えると、別の組として足せる",
-      act: `{
-        const select = document.querySelector("form.new [name=model]");
-        select.value = select.options[1].value;
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-      }`,
+      name: "モデルのチップを押すと、選択肢のメニューが開く",
+      act: click("form.new [data-picker=model]"),
+      until: exists(".picker-menu"),
+      timeoutMs: 5_000,
+    },
+    {
+      name: "既定でないモデルを選ぶと、別の組として足せる",
+      act: click('.picker-menu [role=option]:not([data-value=""])'),
       until: exists(`${toggle}[data-bookmarked=false]`),
       timeoutMs: 5_000,
     },
