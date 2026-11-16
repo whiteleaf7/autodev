@@ -8,11 +8,13 @@ import { resolveCommand } from "../src/commands.ts";
 const BIN = join(import.meta.dirname, "../bin/autodev.ts");
 
 test("サブコマンドを、動かすスクリプトと引数に分ける", () => {
-  assert.deepEqual(resolveCommand(["check", "--staged"]), { ok: true, script: "harness/src/check.ts", args: ["--staged"] });
-  assert.deepEqual(resolveCommand(["hook", "pre-commit"]), { ok: true, script: "harness/src/hook.ts", args: ["pre-commit"] });
+  assert.deepEqual(resolveCommand(["check", "--staged"]), { ok: true, script: "harness/src/check.ts", runner: null, args: ["--staged"] });
+  assert.deepEqual(resolveCommand(["hook", "pre-commit"]), { ok: true, script: "harness/src/hook.ts", runner: null, args: ["pre-commit"] });
+  assert.deepEqual(resolveCommand(["windows"]), { ok: true, script: "verify/src/windows.swift", runner: "swift", args: [] }, "swift で動かすものは runner を持つ");
   assert.deepEqual(resolveCommand(["screenshot", "http://x", "a.png"]), {
     ok: true,
     script: "verify/src/screenshot.ts",
+    runner: null,
     args: ["http://x", "a.png"],
   });
 });

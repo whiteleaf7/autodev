@@ -11,7 +11,8 @@ if (!resolved.ok) {
   process.exit(resolved.help ? 0 : 2);
 }
 
-const child = spawn(process.execPath, [join(import.meta.dirname, "..", resolved.script), ...resolved.args], {
+// 既定は node。swift のスクリプトなど、別の実行系が要るものは runner で指す
+const child = spawn(resolved.runner ?? process.execPath, [join(import.meta.dirname, "..", resolved.script), ...resolved.args], {
   stdio: "inherit",
 });
 // フックのように、入口が先に終わっても、取り残さない

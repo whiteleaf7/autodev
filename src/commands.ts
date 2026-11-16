@@ -12,6 +12,7 @@ const COMMANDS = {
   "stop-hook": { script: "harness/src/stop-hook.ts", summary: "エージェントの Stop フックの本体（確認を頼む返答を差し戻す）" },
   "roborev-doctor": { script: "harness/src/roborev-doctor.ts", summary: "roborev の状態を調べて、問題があれば知らせる" },
   screenshot: { script: "verify/src/screenshot.ts", summary: "ヘッドレス Chrome で Web の画面を撮る" },
+  windows: { script: "verify/src/windows.swift", runner: "swift", summary: "macOS のウィンドウの一覧を出す（ネイティブのアプリの確認用）" },
 } as const;
 
 export const USAGE = [
@@ -21,7 +22,7 @@ export const USAGE = [
   ...Object.entries(COMMANDS).map(([name, { summary }]) => `  ${name.padEnd(16)}${summary}`),
 ].join("\n");
 
-export type Resolved = { ok: true; script: string; args: string[] } | { ok: false; message: string; help: boolean };
+export type Resolved = { ok: true; script: string; runner: string | null; args: string[] } | { ok: false; message: string; help: boolean };
 
 export function resolveCommand(argv: readonly string[]): Resolved {
   const [name, ...args] = argv;
@@ -31,5 +32,6 @@ export function resolveCommand(argv: readonly string[]): Resolved {
   if (!Object.hasOwn(COMMANDS, name)) {
     return { ok: false, message: `${name} というコマンドは無い\n\n${USAGE}`, help: false };
   }
-  return { ok: true, script: COMMANDS[name as keyof typeof COMMANDS].script, args };
+  const command: { script: string; runner?: string } = COMMANDS[name as keyof typeof COMMANDS];
+  return { ok: true, script: command.script, runner: command.runner ?? null, args };
 }

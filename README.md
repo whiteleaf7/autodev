@@ -34,6 +34,7 @@ AI 自律開発の実行基盤。コミット前のゲート（`autodev check`�
 | `autodev stop-hook`      | エージェントの Stop フックの本体                                           |
 | `autodev roborev-doctor` | roborev の状態を調べる                                                     |
 | `autodev screenshot`     | ヘッドレス Chrome で Web の画面を撮る                                      |
+| `autodev windows`        | macOS のウィンドウの一覧を出す（ネイティブのアプリの確認用）               |
 
 ## プロジェクトに置くもの
 
