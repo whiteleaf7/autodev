@@ -1,4 +1,6 @@
 #!/bin/sh
 # コミットの前に、無視されているファイルの混入を確かめ、ステージしたファイルを整形してから、コミットされる中身（index）でゲート（pnpm check --staged）を通す。
 # 有効にするには: git config core.hooksPath .githooks（pnpm install でも設定される）
-exec node tools/harness/src/hook.ts pre-commit
+# autodev コマンドが無いと、検査を飛ばしてコミットが通ってしまうので、止めて入れ方を知らせる
+command -v autodev >/dev/null 2>&1 || { echo "autodev コマンドが無い。https://github.com/whiteleaf7/autodev の README の「導入する」に従って入れる" >&2; exit 1; }
+exec autodev hook pre-commit

@@ -15,7 +15,7 @@ if (!raw) process.exit(0);
 const input = StopInput.safeParse(JSON.parse(raw));
 if (!input.success) {
   console.error(
-    `Stop フックの入力の形が変わった。tools/harness/src/stop-hook.ts の StopInput を合わせる: ${input.error.message}`,
+    `Stop フックの入力の形が変わった。autodev の harness/src/stop-hook.ts の StopInput を合わせる: ${input.error.message}`,
   );
   process.exit(1);
 }

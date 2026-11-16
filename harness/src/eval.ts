@@ -121,7 +121,7 @@ const { values } = parseArgs({
 });
 if (values.set !== "public" && values.set !== "heldout") throw new Error("--set は public か heldout");
 
-const scenarios = loadScenarios(join(ROOT, "tools/harness/eval", values.set)).filter(
+const scenarios = loadScenarios(join(ROOT, ".autodev/eval", values.set)).filter(
   (s) => !values.family || s.family === values.family,
 );
 const template = createTemplate(ROOT);
@@ -145,9 +145,9 @@ try {
     console.log(formatSummary(summary));
     if (values.record) {
       const commitHash = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
-      mkdirSync(join(ROOT, "dev/harness"), { recursive: true });
+      mkdirSync(join(ROOT, ".autodev"), { recursive: true });
       appendFileSync(
-        join(ROOT, "dev/harness/history.jsonl"),
+        join(ROOT, ".autodev/history.jsonl"),
         JSON.stringify({ at: new Date().toISOString(), set: values.set, commit: commitHash, gate, ...summary }) + "\n",
       );
     }

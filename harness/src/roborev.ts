@@ -33,7 +33,7 @@ export function roborevNotices(doctorOutput: string): string[] {
   }
   const report = DoctorReport.safeParse(json);
   if (!report.success)
-    return ["roborev doctor --json の出力の形が変わった。tools/harness/src/roborev.ts の DoctorReport を合わせる"];
+    return ["roborev doctor --json の出力の形が変わった。autodev の harness/src/roborev.ts の DoctorReport を合わせる"];
 
   return report.data.checks
     .filter((check) => !QUIET_STATUSES.has(check.status) && !ACCEPTED.has(check.id))

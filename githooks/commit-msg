@@ -1,3 +1,5 @@
 #!/bin/sh
 # コミットメッセージの決まり（Conventional Commits、英語の件名、Task: の行）を確かめる
-exec node tools/harness/src/hook.ts commit-msg "$1"
+# autodev コマンドが無いと、検査を飛ばしてコミットが通ってしまうので、止めて入れ方を知らせる
+command -v autodev >/dev/null 2>&1 || { echo "autodev コマンドが無い。https://github.com/whiteleaf7/autodev の README の「導入する」に従って入れる" >&2; exit 1; }
+exec autodev hook commit-msg "$1"

@@ -1,18 +1,16 @@
 // コミット前のゲート。ルートの `pnpm check` から呼ぶ。
 // 速い検査（評価の緩め、規約、記録、ドキュメント）を先に行い、通ったら lint・型チェック・テストを実行する。
-//   node tools/harness/src/check.ts            作業ツリーを検査する
-//   node tools/harness/src/check.ts --staged   index（コミットされる中身）を一時ディレクトリに写して検査する。pre-commit が使う
+//   autodev check            作業ツリーを検査する
+//   autodev check --staged   index（コミットされる中身）を一時ディレクトリに写して検査する。pre-commit が使う
 
 import { projectRoot } from "./project-root.ts";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { rmSync } from "node:fs";
 import { checkConventions } from "./checks/conventions.ts";
 import { checkDocs } from "./checks/docs.ts";
 import { checkGate } from "./checks/gate.ts";
 import { checkRecords } from "./checks/records.ts";
-import { COMMON_RULES_FILE, checkRules, staleAgainstBase } from "./checks/rules.ts";
+import { checkRules, readCommonRules, staleAgainstCommon } from "./checks/rules.ts";
 import { lintDecisionFiles, requireToolNames } from "./devboard-cli.ts";
 import { withoutGitEnv } from "./env.ts";
 import { loadRepo, type Problem, type Repo } from "./repo.ts";
@@ -24,12 +22,9 @@ export function formatProblem({ check, file, line, message }: Problem): string {
   return `${file}${line ? `:${line}` : ""}: [${check}] ${message}`;
 }
 
-// init-autodev スキルの base/ の共通の規約が、このプロジェクトのものと違うときだけ、案内を出す（ゲートは止めない。CI には base/ が無い）
-function notifyIfBehindBase(repo: Repo): void {
-  const baseDir = process.env.AUTODEV_BASE ?? join(homedir(), ".agents/skills/init-autodev/base");
-  const baseFile = join(baseDir, COMMON_RULES_FILE);
-  const baseCommon = existsSync(baseFile) ? readFileSync(baseFile, "utf8") : null;
-  const message = staleAgainstBase(repo.read(COMMON_RULES_FILE), baseCommon);
+// プロジェクトの共通の規約の区画が、autodev の最新と違うときだけ、案内を出す（ゲートは止めない）
+function notifyIfBehindCommon(repo: Repo): void {
+  const message = staleAgainstCommon(repo.read("AGENTS.md"), readCommonRules());
   if (message) console.log(`check: 注意: ${message}`);
 }
 
@@ -54,7 +49,7 @@ function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): number {
     if (status !== 0) return status ?? 1;
   }
   console.log("check: すべて通った");
-  notifyIfBehindBase(repo);
+  notifyIfBehindCommon(repo);
   return 0;
 }
 

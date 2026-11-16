@@ -1,7 +1,7 @@
 // git のフック（.githooks/）から呼ばれる。
-//   node tools/harness/src/hook.ts pre-commit              無視されているファイルの混入を確かめ、ステージしたファイルを整形してから、コミットされる中身でゲートを通す
-//   node tools/harness/src/hook.ts commit-msg <ファイル>   コミットメッセージの決まりを確かめる
-//   node tools/harness/src/hook.ts pre-push                main への push を止める
+//   autodev hook pre-commit              無視されているファイルの混入を確かめ、ステージしたファイルを整形してから、コミットされる中身でゲートを通す
+//   autodev hook commit-msg <ファイル>   コミットメッセージの決まりを確かめる
+//   autodev hook pre-push                main への push を止める
 
 import { projectRoot } from "./project-root.ts";
 import { spawnSync } from "node:child_process";

@@ -103,7 +103,7 @@ AI 自律開発を目指しているので、コミット・push・PR のマー�
 - ボード（タスク・教訓・マイルストーン）は git の外にあるので、コミットに含めるものは無い。決定記録はリポジトリにあり、関係する変更と同じコミットに含める。`create_decision` と `set_decision_status` は main の worktree のファイルを書くので、作業用の worktree で作業しているときは、そのファイルを自分の worktree に移して（`set_decision_status` で変わったものは、main の worktree の側を `git restore` で戻して）コミットする
 - コミットの前に `pnpm typecheck` と `pnpm test` を通す
 - この 2 つと lint を含むゲートが `pnpm check` で、`.githooks/` のフックがコミットのたびに実行する。メッセージの形式と `Task:` の行もフックが確かめる。止められたら、表示された理由を直す（`--no-verify` で飛ばすのは、理由を決定記録に残したときだけ）
-- `tools/harness/eval/heldout/` は、ハーネスの最終評価用のシナリオ。中身を読まない（読むと評価が意味を失う。`docs/harness.md`）
+- `.autodev/eval/heldout/` は、ハーネスの最終評価用のシナリオ。中身を読まない（読むと評価が意味を失う。`docs/harness.md`）
 - `git add` はパスを指定する（`-A` や `.` を使わない）。他のセッションが作業中の変更を混ぜないため
 - `main` には直接コミットも push もしない（pre-push フックが止める）。作業はブランチで行い、区切りごとに `pnpm land` で取り込む。`pnpm land` が、ゲート・push・draft の PR・CI を待つ・rebase でのマージ・ローカルの main の更新までを行う
 - 作業用の worktree を作るときは、main の worktree で `git worktree add .claude/worktrees/<名前> -b <ブランチ>`（または `.worktrees/<名前>`）を実行する。main の worktree の上で `git switch -c <ブランチ>` してもよい（`pnpm land` が main に戻す）

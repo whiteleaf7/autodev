@@ -73,7 +73,7 @@ function packageManager(repo: Repo): Problem[] {
   }
 
   // Markdown は、コマンドとして書かれた箇所（コードブロックとインラインコード）だけを見る。地の文での言及は構わない
-  for (const file of repo.files.filter((f) => f.endsWith(".md") && !f.startsWith("tools/harness/eval/"))) {
+  for (const file of repo.files.filter((f) => f.endsWith(".md") && !f.startsWith(".autodev/eval/"))) {
     let fenced = false;
     (repo.read(file) ?? "").split("\n").forEach((text, i) => {
       if (/^\s*(```|~~~)/.test(text)) fenced = !fenced;

@@ -65,7 +65,7 @@ const repo = loadRepo(ROOT);
 const requested = process.argv.slice(2);
 const targets = requested.length
   ? requested
-  : repo.files.filter((f) => /^tools\/[^/]+\/(src\/.+\.ts|public\/.+\.js)$/.test(f) && !f.startsWith("tools/harness/"));
+  : repo.files.filter((f) => /^tools\/[^/]+\/(src\/.+\.ts|public\/.+\.js)$/.test(f));
 const packages = packageDirs(repo).filter(Boolean);
 const packageOf = (file: string) =>
   packages.filter((dir) => file.startsWith(`${dir}/`)).sort((a, b) => b.length - a.length)[0];
