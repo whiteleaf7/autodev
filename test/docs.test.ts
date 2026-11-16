@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import { checkDocs } from "../src/checks/docs.ts";
 import { memoryRepo } from "../src/repo.ts";
 
+const TOOLS = ["get_overview", "create_task"];
+
 const repoFiles = {
   "package.json": `{"name":"autodev","scripts":{"test":"pnpm -r test","board":"pnpm --filter @repo/devboard start"}}`,
   "tools/devboard/package.json": `{"name":"@repo/devboard","scripts":{"start":"node src/server.ts"}}`,
   "tools/devboard/src/mcp.ts": "export {};\n",
-  "tools/harness/devboard-tools.json": `["get_overview","create_task"]`,
   "docs/product.md": "# プロダクト\n",
   "docs/decisions/0001-first.md": "# 0001. 最初\n",
   ".gitignore": ".dev/\nnode_modules/\n",
@@ -16,7 +17,7 @@ const repoFiles = {
 };
 
 const checksOf = (doc: string, extra: Record<string, string> = {}) =>
-  checkDocs(memoryRepo({ ...repoFiles, "AGENTS.md": doc, ...extra })).map((p) => p.check);
+  checkDocs(memoryRepo({ ...repoFiles, "AGENTS.md": doc, ...extra }), TOOLS).map((p) => p.check);
 
 test("無い pnpm スクリプトへの言及を見つける", () => {
   assert.deepEqual(checksOf("テストは `pnpm test`、ボードは `pnpm board`\n"), []);

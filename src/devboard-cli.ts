@@ -1,12 +1,14 @@
-// devboard コマンド（~/github/devboard。決定記録 0044）を呼ぶ。CI には入っていないので、
-// CI でも動かす検査はここに頼らず、ローカルだけで動く処理（コミットメッセージの検査・評価）が使う。
+// devboard コマンド（~/github/devboard。決定記録 0044・0047）を呼ぶ。ツール名の一覧と決定記録の形式は、devboard が持つ知識なので、
+// ゲートはその写しを持たず、このコマンドに聞く。CI も、check.yml で devboard を取って入れる。
 
 import { spawnSync } from "node:child_process";
 import { accessSync, constants, realpathSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { z } from "zod";
+import type { Problem } from "./repo.ts";
 
-const INSTALL_HINT = "~/github/devboard を clone し、pnpm install と pnpm run link-bin を実行して PATH に入れる";
+const INSTALL_HINT =
+  "git clone https://github.com/whiteleaf7/devboard.git ~/github/devboard のあと、そこで pnpm install と pnpm run link-bin を実行し、~/.local/bin を PATH に入れる";
 
 const TaskList = z.object({ tasks: z.array(z.object({ id: z.string() })) });
 const ToolNames = z.array(z.string());
@@ -34,10 +36,23 @@ function devboardOutput(args: string[], cwd: string, env?: NodeJS.ProcessEnv): s
 
 export const readTaskIds = (cwd: string): string[] => parseTaskIds(devboardOutput(["show", "tasks"], cwd));
 
-// devboard が無い環境（CI など）では null
-export function readToolNames(cwd: string): string[] | null {
-  const result = runDevboard(["tools"], cwd);
-  return result.ok ? parseToolNames(result.stdout) : null;
+export const requireToolNames = (cwd: string): string[] => parseToolNames(devboardOutput(["tools"], cwd));
+
+const LintProblems = z.array(z.object({ check: z.string(), file: z.string(), message: z.string() }));
+export const parseLintProblems = (json: string): Problem[] => LintProblems.parse(JSON.parse(json));
+
+// devboard lint-decisions に決定記録を渡して、形式の問題を得る。問題があると終了コード 1 で、問題は標準出力に出る
+export function lintDecisionFiles(files: { file: string; text: string }[], cwd: string): Problem[] {
+  if (!files.length) return [];
+  const result = spawnSync("devboard", ["lint-decisions"], {
+    cwd,
+    input: JSON.stringify(files),
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  if (result.error) throw new Error(`devboard コマンドを実行できない（${result.error.message}）。${INSTALL_HINT}`);
+  if (result.status === 0 || result.status === 1) return parseLintProblems(result.stdout);
+  throw new Error(`devboard lint-decisions が失敗した: ${result.stderr.trim()}`);
 }
 
 export function snapshotBoard(file: string, cwd: string): void {

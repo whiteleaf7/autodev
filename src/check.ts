@@ -8,12 +8,11 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkConventions } from "./checks/conventions.ts";
-import { checkDevboardTools } from "./checks/devboard-tools.ts";
 import { checkDocs } from "./checks/docs.ts";
 import { checkGate } from "./checks/gate.ts";
 import { checkRecords } from "./checks/records.ts";
 import { COMMON_RULES_FILE, checkRules, staleAgainstBase } from "./checks/rules.ts";
-import { readToolNames } from "./devboard-cli.ts";
+import { lintDecisionFiles, requireToolNames } from "./devboard-cli.ts";
 import { withoutGitEnv } from "./env.ts";
 import { loadRepo, type Problem, type Repo } from "./repo.ts";
 import { LINKED_MODULES_ENV, snapshotIndex } from "./snapshot.ts";
@@ -38,10 +37,9 @@ function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): number {
   const problems = [
     ...checkGate(repo),
     ...checkConventions(repo),
-    ...checkRecords(repo),
-    ...checkDocs(repo),
+    ...checkRecords(repo, (files) => lintDecisionFiles(files, dir)),
+    ...checkDocs(repo, requireToolNames(dir)),
     ...checkRules(repo),
-    ...checkDevboardTools(repo, readToolNames(dir)),
   ];
   if (problems.length) {
     for (const problem of problems) console.error(formatProblem(problem));

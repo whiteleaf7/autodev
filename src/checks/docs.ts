@@ -3,7 +3,6 @@
 
 import { posix } from "node:path";
 import { packageDirs, parseJson, type Problem, type Repo } from "../repo.ts";
-import { readToolsFile } from "./devboard-tools.ts";
 
 const isDoc = (path: string) =>
   path === "CLAUDE.md" || path === "AGENTS.md" || path === "README.md" || /^docs\/.+\.md$/.test(path);
@@ -89,7 +88,7 @@ type Facts = {
   ignored: (path: string) => boolean;
 };
 
-function gatherFacts(repo: Repo): Facts {
+function gatherFacts(repo: Repo, tools: string[] | null): Facts {
   const packageScripts = new Map<string, Set<string>>();
   let rootScripts = new Set<string>();
   const rootJson = parseJson(repo.read("package.json"));
@@ -127,7 +126,7 @@ function gatherFacts(repo: Repo): Facts {
     decisions: new Set(
       repo.files.map((f) => /^docs\/decisions\/(\d{4})-/.exec(f)?.[1]).filter((n): n is string => Boolean(n)),
     ),
-    tools: readToolsFile(repo),
+    tools: tools ? new Set(tools) : null,
     exists: (path) => {
       const trimmed = path.replace(/\/$/, "");
       return files.has(trimmed) || repo.files.some((f) => f.startsWith(`${trimmed}/`));
@@ -261,8 +260,9 @@ function checkConfig(repo: Repo, facts: Facts): Problem[] {
   return problems;
 }
 
-export function checkDocs(repo: Repo): Problem[] {
-  const facts = gatherFacts(repo);
+// tools は、devboard が登録している MCP ツールの名前（devboard tools）。無ければ（null）、ツール名は見ない
+export function checkDocs(repo: Repo, tools: string[] | null): Problem[] {
+  const facts = gatherFacts(repo, tools);
   return [
     ...repo.files.filter(isDoc).flatMap((file) => checkDoc(file, repo.read(file) ?? "", facts)),
     ...checkConfig(repo, facts),

@@ -14,6 +14,7 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { exportBase, parseBootstrapArgs, toPascalCase, writeBootstrapFiles } from "../src/bootstrap.ts";
 import { checkDocs } from "../src/checks/docs.ts";
+import { lintDecisionFiles, requireToolNames } from "../src/devboard-cli.ts";
 import { checkRecords } from "../src/checks/records.ts";
 import { checkRules } from "../src/checks/rules.ts";
 import { findRegion } from "../src/rules-region.ts";
@@ -55,8 +56,11 @@ test("writeBootstrapFiles はマルチエージェント対応の基盤一式を
 
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
   const repo = loadRepo(dir);
-  assert.deepEqual(checkDocs(repo), []);
-  assert.deepEqual(checkRecords(repo), []);
+  assert.deepEqual(checkDocs(repo, requireToolNames(dir)), []);
+  assert.deepEqual(
+    checkRecords(repo, (files) => lintDecisionFiles(files, dir)),
+    [],
+  );
   assert.deepEqual(checkRules(repo), [], "AGENTS.md の共通の規約の区画が、common.md と同じ");
   assert.ok(findRegion(readFileSync(join(dir, "AGENTS.md"), "utf8")), "共通の規約を管理される区画として入れる");
 });
@@ -99,8 +103,11 @@ test("exportBase で作った展開元から、プロジェクトのディレク
 
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: fromBase });
   const repo = loadRepo(fromBase);
-  assert.deepEqual(checkDocs(repo), []);
-  assert.deepEqual(checkRecords(repo), []);
+  assert.deepEqual(checkDocs(repo, requireToolNames(fromBase)), []);
+  assert.deepEqual(
+    checkRecords(repo, (files) => lintDecisionFiles(files, fromBase)),
+    [],
+  );
 });
 
 test("exportBase は、空でない出力先には書かない", (t) => {
