@@ -635,10 +635,17 @@ export function bootstrapProject(opts: BootstrapOptions): void {
       args: {
         title: "開発基盤とダッシュボード環境を整備する",
         description: "自律開発基盤とダッシュボードのツールを展開し、新規プロジェクトを進められる準備を行う。",
-        status: "done",
         priority: "high",
         milestone: "M0",
         paths: ["tools/", "docs/", ".githooks/", ".github/"],
+      },
+    },
+    // "$2" は、3 番目の操作（上の create_task）が作ったタスクの ID
+    {
+      op: "update_task",
+      args: {
+        id: "$2",
+        status: "done",
         note: "動かした: `pnpm bootstrap` → 開発基盤の展開・pnpm check・初期コミットが完了",
       },
     },
