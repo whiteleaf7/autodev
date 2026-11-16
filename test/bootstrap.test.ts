@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
-import { existsSync, lstatSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { test } from "node:test";
-import { parseBootstrapArgs, toPascalCase, writeBootstrapFiles } from "../src/bootstrap.ts";
+import { exportBase, parseBootstrapArgs, toPascalCase, writeBootstrapFiles } from "../src/bootstrap.ts";
 import { checkDocs } from "../src/checks/docs.ts";
 import { checkRecords } from "../src/checks/records.ts";
 import { loadRepo } from "../src/repo.ts";
@@ -46,4 +55,53 @@ test("writeBootstrapFiles はマルチエージェント対応の基盤一式を
   const repo = loadRepo(dir);
   assert.deepEqual(checkDocs(repo), []);
   assert.deepEqual(checkRecords(repo), []);
+});
+
+const fileList = (root: string): string[] =>
+  readdirSync(root, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(entry.parentPath, entry.name).slice(root.length + 1))
+    .filter((rel) => !rel.startsWith(".git/"))
+    .sort();
+
+test("--source で展開元を指せる", () => {
+  const opts = parseBootstrapArgs(["/tmp/my-project", "--source", "/tmp/some-base"]);
+  assert.equal(opts.sourceRoot, "/tmp/some-base");
+  assert.equal(parseBootstrapArgs(["/tmp/my-project"]).sourceRoot, undefined);
+});
+
+test("exportBase で作った展開元から、プロジェクトのディレクトリと同じ内容を展開できる", (t) => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), "autodev-base-test-")));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  const source = resolve(import.meta.dirname, "../../..");
+  const base = join(tmp, "base");
+
+  exportBase(source, base);
+  const baseFiles = fileList(base);
+  for (const needed of ["package.json", "tools/harness/src/bootstrap.ts", ".githooks/pre-commit", "docs/harness.md"]) {
+    assert.ok(baseFiles.includes(needed), `${needed} が展開元に無い`);
+  }
+  assert.ok(
+    !baseFiles.some((rel) => rel.startsWith("tools/harness/eval/heldout/") && !rel.endsWith(".gitkeep")),
+    "最終評価用のシナリオを持ち込まない",
+  );
+
+  const options = { name: "sample-app", title: "SampleApp", summary: "概要", filesOnly: true };
+  const fromProject = join(tmp, "from-project");
+  const fromBase = join(tmp, "from-base");
+  writeBootstrapFiles({ ...options, targetDir: fromProject });
+  writeBootstrapFiles({ ...options, targetDir: fromBase, sourceRoot: base });
+  assert.deepEqual(fileList(fromBase), fileList(fromProject));
+
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: fromBase });
+  const repo = loadRepo(fromBase);
+  assert.deepEqual(checkDocs(repo), []);
+  assert.deepEqual(checkRecords(repo), []);
+});
+
+test("exportBase は、空でない出力先には書かない", (t) => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), "autodev-base-test-")));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  writeFileSync(join(tmp, "old.txt"), "古い展開元");
+  assert.throws(() => exportBase(resolve(import.meta.dirname, "../../.."), tmp), /空ではない/);
 });

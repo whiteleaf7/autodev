@@ -1,5 +1,7 @@
-// 自律開発基盤（devboard・harness・verify・フック・CI・AGENTS.md / CLAUDE.md）を新しいディレクトリへ展開して初期化する。
-//   pnpm bootstrap <対象ディレクトリ> [--name <プロジェクト名>] [--title <製品表示名>] [--summary <概要>] [--files-only]
+// 自律開発基盤（harness・verify・フック・CI・AGENTS.md / CLAUDE.md。devboard は共有のコマンド）を新しいディレクトリへ展開して初期化する。
+//   node bootstrap.ts <対象ディレクトリ> [--name <プロジェクト名>] [--title <製品表示名>] [--summary <概要>] [--files-only] [--source <展開元>]
+//   node bootstrap.ts --export-base <出力先> [--source <展開元>]    展開元（init-autodev スキルの base/）を作る
+// 展開元は、既定ではこのファイルがあるディレクトリの根。init-autodev スキルは、特定のプロジェクトに頼らないよう、自分の base/ に展開元を持つ。
 
 import { execFileSync } from "node:child_process";
 import {
@@ -15,10 +17,11 @@ import {
 } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
-const SOURCE_ROOT = resolve(import.meta.dirname, "../../..");
+// このファイルがある基盤の根。プロジェクトの中なら、そのプロジェクト。スキルの base/ の中なら、base/
+const DEFAULT_SOURCE_ROOT = resolve(import.meta.dirname, "../../..");
 
 const USAGE =
-  "使い方: pnpm bootstrap <対象ディレクトリ> [--name <プロジェクト名>] [--title <製品表示名>] [--summary <概要>] [--files-only]";
+  "使い方: bootstrap <対象ディレクトリ> [--name <プロジェクト名>] [--title <製品表示名>] [--summary <概要>] [--files-only] [--source <展開元>]\n        bootstrap --export-base <出力先> [--source <展開元>]";
 
 export type BootstrapOptions = {
   targetDir: string;
@@ -26,6 +29,8 @@ export type BootstrapOptions = {
   title: string;
   summary: string;
   filesOnly: boolean;
+  // 展開元の根。省くと、このファイルがある基盤の根
+  sourceRoot?: string;
 };
 
 export function toPascalCase(slug: string): string {
@@ -44,6 +49,7 @@ export function parseBootstrapArgs(argv: string[]): BootstrapOptions {
   let title: string | undefined;
   let summary: string | undefined;
   let filesOnly = false;
+  let sourceArg: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     const next = () => {
@@ -55,6 +61,7 @@ export function parseBootstrapArgs(argv: string[]): BootstrapOptions {
     else if (arg === "--title") title = next();
     else if (arg === "--summary") summary = next();
     else if (arg === "--files-only") filesOnly = true;
+    else if (arg === "--source") sourceArg = next();
     else if (arg.startsWith("-")) throw new Error(`知らない引数: ${arg}\n${USAGE}`);
     else if (!targetArg) targetArg = arg;
     else throw new Error(`対象ディレクトリが複数渡されている: ${arg}\n${USAGE}`);
@@ -72,6 +79,7 @@ export function parseBootstrapArgs(argv: string[]): BootstrapOptions {
     title: resolvedTitle,
     summary: summary ?? `${resolvedTitle}（${resolvedName}）`,
     filesOnly,
+    sourceRoot: sourceArg ? resolve(process.env.INIT_CWD ?? process.cwd(), sourceArg) : undefined,
   };
 }
 
@@ -114,6 +122,9 @@ const ENV_DECISIONS = [
   "0038-read-only-devboard.md",
 ] as const;
 
+// 最終評価用のシナリオ（heldout）は、新しいプロジェクトに持ち込まない
+const skipHeldout = (rel: string) => rel.startsWith("eval/heldout/") && rel !== "eval/heldout/.gitkeep";
+
 function copyTreeFiltered(fromDir: string, toDir: string, skip?: (rel: string) => boolean, relBase = ""): void {
   mkdirSync(toDir, { recursive: true });
   for (const entry of readdirSync(fromDir, { withFileTypes: true })) {
@@ -132,8 +143,8 @@ function copyTreeFiltered(fromDir: string, toDir: string, skip?: (rel: string) =
   }
 }
 
-export function renderPackageJson(name: string, title: string): string {
-  const rootPkg = JSON.parse(readFileSync(join(SOURCE_ROOT, "package.json"), "utf8")) as Record<string, unknown>;
+export function renderPackageJson(name: string, title: string, sourceRoot = DEFAULT_SOURCE_ROOT): string {
+  const rootPkg = JSON.parse(readFileSync(join(sourceRoot, "package.json"), "utf8")) as Record<string, unknown>;
   return `${JSON.stringify(
     {
       name,
@@ -521,13 +532,14 @@ cp tools/verify/settings.local.example.json .claude/settings.local.json
 
 export function writeBootstrapFiles(opts: BootstrapOptions): void {
   const { targetDir, name, title } = opts;
+  const sourceRoot = opts.sourceRoot ?? DEFAULT_SOURCE_ROOT;
   if (existsSync(join(targetDir, "package.json"))) {
     throw new Error(`${targetDir} にはすでに package.json がある。空のディレクトリを指定する`);
   }
   mkdirSync(targetDir, { recursive: true });
 
   for (const rel of ROOT_FILES) {
-    const src = join(SOURCE_ROOT, rel);
+    const src = join(sourceRoot, rel);
     if (!existsSync(src)) continue;
     const dst = join(targetDir, rel);
     mkdirSync(dirname(dst), { recursive: true });
@@ -538,20 +550,16 @@ export function writeBootstrapFiles(opts: BootstrapOptions): void {
     'packages:\n  - "apps/*"\n  - "packages/*"\n  - "tools/*"\n  - "spikes/*"\n',
   );
 
-  copyTreeFiltered(join(SOURCE_ROOT, ".githooks"), join(targetDir, ".githooks"));
-  copyTreeFiltered(
-    join(SOURCE_ROOT, "tools/harness"),
-    join(targetDir, "tools/harness"),
-    (rel) => rel.startsWith("eval/heldout/") && rel !== "eval/heldout/.gitkeep",
-  );
+  copyTreeFiltered(join(sourceRoot, ".githooks"), join(targetDir, ".githooks"));
+  copyTreeFiltered(join(sourceRoot, "tools/harness"), join(targetDir, "tools/harness"), skipHeldout);
   for (const rel of VERIFY_FILES) {
-    const src = join(SOURCE_ROOT, "tools/verify", rel);
+    const src = join(sourceRoot, "tools/verify", rel);
     if (!existsSync(src)) continue;
     const dst = join(targetDir, "tools/verify", rel);
     mkdirSync(dirname(dst), { recursive: true });
     cpSync(src, dst);
   }
-  const verifyPkg = JSON.parse(readFileSync(join(SOURCE_ROOT, "tools/verify/package.json"), "utf8")) as Record<
+  const verifyPkg = JSON.parse(readFileSync(join(sourceRoot, "tools/verify/package.json"), "utf8")) as Record<
     string,
     unknown
   >;
@@ -578,12 +586,12 @@ export function writeBootstrapFiles(opts: BootstrapOptions): void {
 
   mkdirSync(join(targetDir, "docs/decisions"), { recursive: true });
   for (const decision of ENV_DECISIONS) {
-    const src = join(SOURCE_ROOT, "docs/decisions", decision);
+    const src = join(sourceRoot, "docs/decisions", decision);
     if (existsSync(src)) cpSync(src, join(targetDir, "docs/decisions", decision));
   }
-  const decision39Src = existsSync(join(SOURCE_ROOT, "docs/decisions/0040-multi-agent-and-bootstrap.md"))
-    ? join(SOURCE_ROOT, "docs/decisions/0040-multi-agent-and-bootstrap.md")
-    : join(SOURCE_ROOT, "docs/decisions/0039-multi-agent-and-bootstrap.md");
+  const decision39Src = existsSync(join(sourceRoot, "docs/decisions/0040-multi-agent-and-bootstrap.md"))
+    ? join(sourceRoot, "docs/decisions/0040-multi-agent-and-bootstrap.md")
+    : join(sourceRoot, "docs/decisions/0039-multi-agent-and-bootstrap.md");
   if (existsSync(decision39Src)) {
     const content = readFileSync(decision39Src, "utf8").replace(/^# 0040\./, "# 0039.");
     writeFileSync(join(targetDir, "docs/decisions/0039-multi-agent-and-bootstrap.md"), content);
@@ -596,13 +604,39 @@ export function writeBootstrapFiles(opts: BootstrapOptions): void {
   mkdirSync(join(targetDir, "dev/harness"), { recursive: true });
   writeFileSync(join(targetDir, "dev/harness/history.jsonl"), "");
 
-  writeFileSync(join(targetDir, "package.json"), renderPackageJson(name, title));
+  writeFileSync(join(targetDir, "package.json"), renderPackageJson(name, title, sourceRoot));
   writeFileSync(join(targetDir, "AGENTS.md"), renderAgentGuide(name, title));
   writeFileSync(join(targetDir, "CLAUDE.md"), "@AGENTS.md\n");
   writeFileSync(join(targetDir, "README.md"), renderReadme(name, title));
   writeFileSync(join(targetDir, "docs/product.md"), renderProductDoc(name, title));
   writeFileSync(join(targetDir, "docs/architecture.md"), renderArchitectureDoc(name, title));
   writeFileSync(join(targetDir, "docs/verification.md"), renderVerificationDoc());
+}
+
+// 展開元（init-autodev スキルの base/ など）を作る。writeBootstrapFiles が展開元から読むファイルだけを写す。
+// 古い展開元を上書きして古いファイルを残さないよう、出力先は空のディレクトリに限る
+export function exportBase(sourceRoot: string, destDir: string): void {
+  if (existsSync(destDir) && readdirSync(destDir).length) {
+    throw new Error(`${destDir} は空ではない。空のディレクトリを指定する（古い展開元は先に ~/.Trash などへ移す）`);
+  }
+  mkdirSync(destDir, { recursive: true });
+  const files = [
+    ...ROOT_FILES,
+    "package.json",
+    ...VERIFY_FILES.map((rel) => `tools/verify/${rel}`),
+    "tools/verify/package.json",
+    ...ENV_DECISIONS.map((decision) => `docs/decisions/${decision}`),
+    "docs/decisions/0040-multi-agent-and-bootstrap.md",
+    "docs/decisions/0039-multi-agent-and-bootstrap.md",
+  ];
+  for (const rel of files) {
+    const src = join(sourceRoot, rel);
+    if (!existsSync(src)) continue;
+    mkdirSync(dirname(join(destDir, rel)), { recursive: true });
+    cpSync(src, join(destDir, rel));
+  }
+  copyTreeFiltered(join(sourceRoot, ".githooks"), join(destDir, ".githooks"));
+  copyTreeFiltered(join(sourceRoot, "tools/harness"), join(destDir, "tools/harness"), skipHeldout);
 }
 
 export function bootstrapProject(opts: BootstrapOptions): void {
@@ -664,11 +698,29 @@ export function bootstrapProject(opts: BootstrapOptions): void {
   });
 }
 
+// --export-base <出力先> [--source <展開元>]
+function exportBaseFromArgs(argv: string[]): string {
+  const dest = argv[argv.indexOf("--export-base") + 1];
+  if (!dest || dest.startsWith("-")) throw new Error(`--export-base の値が無い\n${USAGE}`);
+  const sourceIndex = argv.indexOf("--source");
+  const base = process.env.INIT_CWD ?? process.cwd();
+  const source =
+    sourceIndex >= 0 && argv[sourceIndex + 1] ? resolve(base, argv[sourceIndex + 1]!) : DEFAULT_SOURCE_ROOT;
+  const out = resolve(base, dest);
+  exportBase(source, out);
+  return `bootstrap: 展開元 ${source} の基盤を ${out} に書き出した`;
+}
+
 if (import.meta.main) {
   try {
-    const opts = parseBootstrapArgs(process.argv.slice(2));
-    bootstrapProject(opts);
-    console.log(`bootstrap: ${opts.title} (${opts.name}) を ${opts.targetDir} に用意した`);
+    const argv = process.argv.slice(2);
+    if (argv.includes("--export-base")) {
+      console.log(exportBaseFromArgs(argv));
+    } else {
+      const opts = parseBootstrapArgs(argv);
+      bootstrapProject(opts);
+      console.log(`bootstrap: ${opts.title} (${opts.name}) を ${opts.targetDir} に用意した`);
+    }
   } catch (e) {
     console.error(`bootstrap: ${e instanceof Error ? e.message : String(e)}`);
     process.exit(1);
