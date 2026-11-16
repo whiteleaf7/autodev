@@ -15,6 +15,8 @@ import { test } from "node:test";
 import { exportBase, parseBootstrapArgs, toPascalCase, writeBootstrapFiles } from "../src/bootstrap.ts";
 import { checkDocs } from "../src/checks/docs.ts";
 import { checkRecords } from "../src/checks/records.ts";
+import { checkRules } from "../src/checks/rules.ts";
+import { findRegion } from "../src/rules-region.ts";
 import { loadRepo } from "../src/repo.ts";
 import { execFileSync } from "node:child_process";
 
@@ -55,6 +57,8 @@ test("writeBootstrapFiles はマルチエージェント対応の基盤一式を
   const repo = loadRepo(dir);
   assert.deepEqual(checkDocs(repo), []);
   assert.deepEqual(checkRecords(repo), []);
+  assert.deepEqual(checkRules(repo), [], "AGENTS.md の共通の規約の区画が、common.md と同じ");
+  assert.ok(findRegion(readFileSync(join(dir, "AGENTS.md"), "utf8")), "共通の規約を管理される区画として入れる");
 });
 
 const fileList = (root: string): string[] =>

@@ -16,6 +16,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
+import { renderRegion } from "./rules-region.ts";
 
 // このファイルがある基盤の根。プロジェクトの中なら、そのプロジェクト。スキルの base/ の中なら、base/
 const DEFAULT_SOURCE_ROOT = resolve(import.meta.dirname, "../../..");
@@ -181,7 +182,8 @@ export function renderPackageJson(name: string, title: string, sourceRoot = DEFA
   )}\n`;
 }
 
-export function renderAgentGuide(name: string, title: string): string {
+// 共通の規約（tools/harness/rules/common.md）は、管理される区画として入れる。固有の記述は、区画の外に書く
+export function renderAgentGuide(name: string, title: string, common: string): string {
   return `# ${title} (${name})
 
 **${title}**（リポジトリ名 \`${name}\`）。AI エージェント（Claude Code、Codex、Gemini など）が自律して開発を進めるための基盤（開発ボード・MCP / CLI・ハーネス・画面確認ツール）を備えたプロジェクト。
@@ -196,77 +198,7 @@ export function renderAgentGuide(name: string, title: string): string {
 - \`docs/verification.md\`: 動かして確かめる手段（画面の撮影、ウィンドウの一覧）と、ユーザーに一度だけしてもらう準備
 - \`docs/harness.md\`: コミット前のゲート、フック、worktree の取り込み、記録の検索、ハーネスの評価のしかた
 
-## 進め方（AI がオーケストレーションする）
-
-このプロジェクトでは、ユーザーは大まかな「やりたいこと・直したいこと」だけを伝え、分解・順序づけ・実行・記録は AI が受け持つ。開発ボード（MCP \`devboard\` または \`pnpm board:show\` / \`pnpm board:apply\`）がその台帳になる（決定記録 0039）。
-
-### 判断と確認は AI が行う
-
-ユーザーの判断を待つと、それがブロッカーになって開発が止まる。だから、判断も結果の確認も AI が自分で行う。
-
-- 方針が分かれるもの（プロダクトの方針、未決事項、設計の選択）も、AI が選択肢を比べて決める。決めた理由は \`create_decision\` か \`note\` に残し、ユーザーが後から覆せるようにする
-- 結果は、テスト・型チェック・画面のスクリーンショット・実際の動作で AI が確かめ、確かめられたら \`done\` にする
-- ユーザーに確認してもらうための \`review\` は使わない。返答で「動作確認をお願いします」と頼むのも同じで、Stop フックが差し戻す（\`docs/harness.md\`）
-- 例外は、AI には物理的にできないことだけ。たとえば、ユーザーのアカウントへのログイン、支払い、OS の権限の許可、外部への公開。こういうタスクは \`blocked\` にして、ユーザーにしてほしいことを \`note\` に書き、他のタスクを先に進める
-- 消すと戻せない操作（ユーザーのデータの削除、履歴の書き換え）は行わない。必要なら上の例外として扱う
-
-### 依頼を受けたとき
-
-- 依頼そのものを親タスクとして \`create_task\` で登録する。\`description\` にはユーザーの依頼文を言い換えずに残す
-- 1 セッションで終わる大きさの子タスク（\`parent\` に親の ID）に分ける。各子タスクの \`description\` には、目的と完了の条件を書く
-- 順番があるものは \`dependsOn\` でつなぐ。急ぎは \`priority: high\`
-- 当てはまるマイルストーンがあれば \`milestone\` を付ける。なければ \`set_milestone\` で足してよい
-- 小さな修正（1 回の変更で終わるもの）は分解せず、1 つのタスクとして登録する
-- 分解の結果は、ユーザーに短く伝えてから作業に入る。確認は待たない
-
-### 作業するとき
-
-- 着手するタスクは \`get_overview\` の \`next\` から選ぶ。\`update_task\` で \`status: doing\` にし、ブランチがあれば \`branch\` を入れる
-- 区切りごとに \`note\` で、やったこと・判断・次にやることを残す。次のセッションはこれを読んで再開する
-- 似た作業を始める前に、MCP の \`recall\`（または \`pnpm recall "<質問>"\`）で過去のタスク・決定記録・教訓を引く
-- うまくいかなかったこと、遠回りしたこと、環境の罠は、対処と一緒に \`add_lesson\` で残す。次のセッションが同じ失敗を繰り返さないため
-- ダッシュボードは見るだけで、ボードに書くのは AI だけ（決定記録 0038）。ユーザーは AI に頼んで登録・編集する。以前に画面から書かれた \`createdBy: user\` のタスクや \`by: user\` のメモはユーザーの指示として扱い、作業の前に \`get_task\` で確認する。ユーザーが変えた状態や優先度を、理由なく戻さない（誰がいつ変えたかは \`get_task\` の \`history\` にある）
-- 途中で分かった追加の作業は子タスクとして足す。進められないときは \`blocked\` にして、理由を \`note\` に書く
-- 終わったら、結果を自分で確かめてから \`done\` にする。確かめ方は \`docs/verification.md\`。確かめられないうちは \`doing\` のまま、足りない確認の手段を作る
-- テストはコードと同じ思い込みで書くので、通っても実際に動くとは限らない。振る舞いや画面を変えたタスク（\`paths\` か、\`Task:\` の行でそのタスクを指したコミットに docs 以外があるもの）は、実際に動かして確かめ、\`done\` のメモに「動かした: \`コマンド\` → 結果」の行を入れる（結果は、出力の要点や撮った画像の場所）。テスト・型チェック・lint・ビルドだけのメモでは、store が断る
-- 子タスクがすべて終わったら、親タスクも閉じる
-- 不要になったタスクは消さずに \`cancelled\` にし、理由を \`note\` に残す
-- 設計上の判断（ライブラリ、構成、データ形式、プロトコル）をしたら \`create_decision\` で記録する。覆すときは新しい記録を作り、古い方を \`置き換え\` にする
-- ボード（タスク・教訓・マイルストーン）は git の外の SQLite にある（決定記録 0011）。MCP が使えないときは、読み取りは \`pnpm board:show\`、書き込みは \`pnpm board:apply '<操作の JSON の配列>'\`（MCP のツールと同じ名前と入力の形）を使う。ボードのファイルは直接触らない
-- ボードの決まりに反する書き込み（メモの無い done・cancelled・blocked、動かした結果の無い振る舞いのタスクの done、AI のタスクの review、子が残る親の done など）は、store が断る。断られたら、表示された理由のとおりに直して書き直す
-
-### まとめて頼まれたとき（\`/goal\` など）
-
-「未着手をすべて進めて」「M1 を終わらせて」のように、ボードのタスクをまとめて頼まれることがある。次の手順で回す。
-
-- \`list_tasks\`（または \`pnpm board:show tasks --status todo --detail\`）に対象を渡して取る
-- \`ready\` のものを \`order\` の順に 1 件ずつ進める。1 件終わるたびに \`list_tasks\` を取り直す（作業中に足した子タスクや、依存が解けたタスクが増えるため）
-- \`closable\` の親は、子の結果をまとめて閉じる
-- 方針の判断が要るタスクも、上の「判断と確認は AI が行う」に従って自分で決めて進める
-- 終える条件: 対象に \`ready\` が 0 件になったとき。最後に、終えたタスク、AI が下した主な判断、\`blocked\` と \`stuck\`（\`get_overview\` にも出る）のタスクとその理由をユーザーに返す
-- コミットは下の「コミット」に従い、区切りごとに自分の判断で行う
-
-### 並行で進めるとき（司令塔と作業者）
-
-長く回すほど、メインのセッションのコンテキストが効いてくる。だから、メインのセッションは管理だけをし、タスクの作業はタスクごとの作業者（サブエージェントや別セッション）に任せる。作業者は、1 つのタスクを 1 つの worktree で最後まで進める。仕組みと実験の結果は決定記録 0010 と 0011。
-
-- 司令塔（メインのセッション）: 着手するタスクを選んで \`doing\` にし、作業者を起動するだけにする。コードやログは読まない。並行させてよいのは、\`list_tasks\` で \`ready\` かつ \`overlaps\` が空のものだけ。着手させる前に、タスクの \`paths\`（触る予定のパスの接頭辞）を書く。\`paths\` が空のタスクは、ほかと並行させない。同時に動かす作業者は 3 つまで
-- 作業者の起動:
-  - Claude Code のサブエージェントなら \`isolation: "worktree"\`、\`run_in_background: true\`
-  - Codex や他のエージェントなら \`git worktree add .worktrees/<名前> -b <ブランチ>\` で worktree を分けて動かす
-  - 渡すのはタスク ID と「AGENTS.md の『作業者の手順』に従う」だけ。説明はボードにあるので、プロンプトに書き写さない。作業者には、実装・確認・コミット・取り込みまでを任せる
-- 報告を受けたら、\`list_tasks\` を取り直して次を選ぶ。\`get_overview\` の \`git.uncommittedDecisions\` に決定記録が残っていれば、報告に無くても、自分のブランチに移して \`pnpm land\` で取り込む。作業者が \`blocked\` にしたものは、理由をユーザーへの最後の報告に含める
-
-### 作業者の手順
-
-- 最初に \`get_task\`（または \`pnpm board:show task <ID>\`）で目的と完了の条件を読み、\`recall\`（または \`pnpm recall "<質問>"\`）で似た記録を引く。\`pnpm install --frozen-lockfile --offline\` を実行する
-- 自分の worktree の中で、実装・確認・コミットまでを済ませる。サブエージェントは呼ばない
-- 分離環境では、git を打つコマンドに \`$(...)\`・バッククォート・引用符なしのヒアドキュメント（\`<<EOF\`）・\`sh -c "git …"\` を入れず、main の worktree への \`cd\` や \`git -C\` と \`-c core.hooksPath\` を使わない。コミットのメッセージはファイルで \`.dev/\` に書いて \`git commit -F .dev/<ファイル>\` で渡す（形の一覧は \`docs/harness.md\` の「作業者の Bash の分離」）
-- ボードには、どの worktree からでも MCP または \`pnpm board:apply\` で書いてよい（すべて同じ SQLite に入り、コミットは要らない）
-- 決定記録は main の worktree に書かれ、作業者はそこに git を打てない。作業者が決定記録を書いたら、司令塔への報告にそのファイルを書く。司令塔が自分のブランチに入れて \`pnpm land\` で取り込む
-- 終わったら、自分の worktree で \`pnpm land\` を実行する。origin/main に rebase してゲートを通し、PR を作って CI が通ったらマージする。ほかの取り込みが終わるまで待つ。衝突したら \`git rebase origin/main\` で解消して、もう一度 \`pnpm land\`。CI が落ちたら、直してコミットし、もう一度 \`pnpm land\`（同じ PR を使い回す）
-- 取り込んでから、確かめたことをメモに書いて \`done\` にする。司令塔への報告は、結果・取り込んだコミット・残った問題の 3 行ほどにする
-- 使い終わった worktree は、司令塔が main の worktree で \`pnpm worktree:prune\` を実行して片付ける
+${renderRegion(common)}
 
 ## コマンド
 
@@ -282,46 +214,7 @@ export function renderAgentGuide(name: string, title: string): string {
 - ブランチを PR で main に取り込む: \`pnpm land\`（main 以外のブランチの上で）/ 片付け: \`pnpm worktree:prune\`
 - ハーネスの評価: \`pnpm harness:selftest\`（公開用のシナリオ）/ \`pnpm harness:eval --set heldout --record\`（最終評価用。集計だけを見る）
 - 新規プロジェクトへの基盤展開: \`pnpm bootstrap <対象ディレクトリ> [--name <プロジェクト名>] [--title <製品名>]\`
-
-## コードの書き方
-
-読みやすく、後からリファクタリングしなくて済むコードを最初から書く。
-
-- 名前で意図が伝わるようにする。コメントは「なぜそうしたか」だけを書き、コードを読めば分かることは書かない
-- 冗長に書かない。同じ処理を重ねて書かず、使わないコード・引数・オプション・分岐を残さない
-- ただし早すぎる抽象化もしない。共通化は、同じ形が実際に繰り返されてからにする
-- 型は zod のスキーマを唯一の定義にして \`z.infer\` で得る。\`any\` は使わず、\`as\` は外部との境界でだけ使う
-- 入力・ファイル・外部プロセスとの境界で検証し、内側では検証済みの値を信頼する。エラーは握りつぶさず、利用者が直せる言葉で返す
-- 判断のロジックは副作用（ファイル・ネットワーク・プロセス）から分けて、純粋な関数にしてテストする
-- 関数とファイルは 1 つの責務に保つ。モジュールの依存を循環させない
-- 既存のパターンと命名に合わせる。新しいライブラリや構成を入れるときは決定記録を残す
-- テストは実装の内部ではなく振る舞いを確かめる。バグを直すときは、先に再現するテストを書く
-- 書き終えたら差分を読み直し、冗長な箇所や不要な抽象を削ってからコミットする
-- 依頼と関係のない改善点を見つけたら、その場で混ぜずにタスクとして登録する
-
-## コミット
-
-AI 自律開発を目指しているので、コミット・push・PR のマージは、ユーザーの指示を待たずに AI が自分の判断で行う。push と PR は \`pnpm land\` を通して行い、手で \`git push\` しない。
-
-- 意味のまとまりごとにコミットする。1 つのタスクが大きければ、区切りごとに分けてよい
-- メッセージは Conventional Commits（\`feat:\` \`fix:\` \`docs:\` \`chore:\` \`test:\` \`refactor:\` など）で、簡潔な英語にする
-- ボードのタスクに対応するコミットは、本文に \`Task: T-NNN\` を入れる
-- ボード（タスク・教訓・マイルストーン）は git の外にあるので、コミットに含めるものは無い。決定記録はリポジトリにあり、関係する変更と同じコミットに含める。\`create_decision\` と \`set_decision_status\` は main の worktree のファイルを書くので、作業用の worktree で作業しているときは、そのファイルを自分の worktree に移して（\`set_decision_status\` で変わったものは、main の worktree の側を \`git restore\` で戻して）コミットする
-- コミットの前に \`pnpm typecheck\` と \`pnpm test\` を通す
-- この 2 つと lint を含むゲートが \`pnpm check\` で、\`.githooks/\` のフックがコミットのたびに実行する。メッセージの形式と \`Task:\` の行もフックが確かめる。止められたら、表示された理由を直す（\`--no-verify\` で飛ばすのは、理由を決定記録に残したときだけ）
-- \`tools/harness/eval/heldout/\` は、ハーネスの最終評価用のシナリオ。中身を読まない（読むと評価が意味を失う。\`docs/harness.md\`）
-- \`git add\` はパスを指定する（\`-A\` や \`.\` を使わない）。他のセッションが作業中の変更を混ぜないため
-- \`main\` には直接コミットも push もしない（pre-push フックが止める）。作業はブランチで行い、区切りごとに \`pnpm land\` で取り込む。\`pnpm land\` が、ゲート・push・draft の PR・CI を待つ・rebase でのマージ・ローカルの main の更新までを行う（決定記録 0015）
-- 作業用の worktree を作るときは、main の worktree で \`git worktree add .worktrees/<名前> -b <ブランチ>\`（または \`.claude/worktrees/<名前>\`）を実行する。main の worktree の上で \`git switch -c <ブランチ>\` してもよい（\`pnpm land\` が main に戻す）
-
-## 作業ルール
-
-- パッケージマネージャは pnpm。npm / npx は使わない
-- Node の TypeScript 直接実行を使う。import には \`.ts\` 拡張子を付け、enum や namespace など型の除去だけで消えない構文は使わない（\`erasableSyntaxOnly\`）
-- ローカルで待ち受けるサーバは \`127.0.0.1\` のみにし、Host を確認する
-- ユーザーにサーバのアドレスを伝えるときは、\`127.0.0.1\` ではなく Tailscale の URL（\`https://<Mac の名前>.<tailnet>.ts.net:<ポート>/\`）を貼る。ユーザーはスマホなど別の端末から開くため。ダッシュボードは \`pnpm board:tailscale\` を実行し、出力された URL を使う。Tailscale が動いていないときだけローカルの URL を貼り、その理由を添える
-- \`.dev/\` はローカルの一時ファイル（git 管理外）
-- 仕様や構成を変えたら、関係するドキュメント（README、\`docs/\`）も同じ変更で直す
+- 共通の規約（上の区画）の更新: \`node tools/harness/src/rules-sync.ts [--from <common.md>]\`（init-autodev スキルの base/ から更新するときは \`--from\` に base/ の \`tools/harness/rules/common.md\` を渡す）
 `;
 }
 
@@ -605,7 +498,10 @@ export function writeBootstrapFiles(opts: BootstrapOptions): void {
   writeFileSync(join(targetDir, "dev/harness/history.jsonl"), "");
 
   writeFileSync(join(targetDir, "package.json"), renderPackageJson(name, title, sourceRoot));
-  writeFileSync(join(targetDir, "AGENTS.md"), renderAgentGuide(name, title));
+  writeFileSync(
+    join(targetDir, "AGENTS.md"),
+    renderAgentGuide(name, title, readFileSync(join(sourceRoot, "tools/harness/rules/common.md"), "utf8")),
+  );
   writeFileSync(join(targetDir, "CLAUDE.md"), "@AGENTS.md\n");
   writeFileSync(join(targetDir, "README.md"), renderReadme(name, title));
   writeFileSync(join(targetDir, "docs/product.md"), renderProductDoc(name, title));

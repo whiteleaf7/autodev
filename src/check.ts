@@ -4,13 +4,15 @@
 //   node tools/harness/src/check.ts --staged   index（コミットされる中身）を一時ディレクトリに写して検査する。pre-commit が使う
 
 import { spawnSync } from "node:child_process";
-import { rmSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { checkConventions } from "./checks/conventions.ts";
 import { checkDevboardTools } from "./checks/devboard-tools.ts";
 import { checkDocs } from "./checks/docs.ts";
 import { checkGate } from "./checks/gate.ts";
 import { checkRecords } from "./checks/records.ts";
+import { COMMON_RULES_FILE, checkRules, staleAgainstBase } from "./checks/rules.ts";
 import { readToolNames } from "./devboard-cli.ts";
 import { withoutGitEnv } from "./env.ts";
 import { loadRepo, type Problem, type Repo } from "./repo.ts";
@@ -22,6 +24,15 @@ export function formatProblem({ check, file, line, message }: Problem): string {
   return `${file}${line ? `:${line}` : ""}: [${check}] ${message}`;
 }
 
+// init-autodev スキルの base/ の共通の規約が、このプロジェクトのものと違うときだけ、案内を出す（ゲートは止めない。CI には base/ が無い）
+function notifyIfBehindBase(repo: Repo): void {
+  const baseDir = process.env.AUTODEV_BASE ?? join(homedir(), ".agents/skills/init-autodev/base");
+  const baseFile = join(baseDir, COMMON_RULES_FILE);
+  const baseCommon = existsSync(baseFile) ? readFileSync(baseFile, "utf8") : null;
+  const message = staleAgainstBase(repo.read(COMMON_RULES_FILE), baseCommon);
+  if (message) console.log(`check: 注意: ${message}`);
+}
+
 // 終了コードを返す
 function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): number {
   const problems = [
@@ -29,6 +40,7 @@ function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): number {
     ...checkConventions(repo),
     ...checkRecords(repo),
     ...checkDocs(repo),
+    ...checkRules(repo),
     ...checkDevboardTools(repo, readToolNames(dir)),
   ];
   if (problems.length) {
@@ -43,6 +55,7 @@ function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): number {
     if (status !== 0) return status ?? 1;
   }
   console.log("check: すべて通った");
+  notifyIfBehindBase(repo);
   return 0;
 }
 
