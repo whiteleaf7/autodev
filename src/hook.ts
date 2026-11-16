@@ -6,8 +6,8 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { readTasks } from "@repo/devboard/src/store.ts";
 import { checkMessage, filesToFormat, pushesToMain } from "./commit.ts";
+import { readTaskIds } from "./devboard-cli.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 
@@ -62,9 +62,10 @@ function preCommit(): void {
 
 function commitMsg(file: string | undefined): void {
   if (!file || !existsSync(file)) fail(["コミットメッセージのファイルが渡されていない"]);
-  const problems = checkMessage(readFileSync(file, "utf8"), {
-    existingTasks: new Set(readTasks().tasks.map((t) => t.id)),
-  });
+  const message = readFileSync(file, "utf8");
+  // ボードを読むのは、Task: の行があるときだけ（devboard の呼び出しは重い）
+  const existingTasks = new Set(/^Task:/m.test(message) ? readTaskIds(ROOT) : []);
+  const problems = checkMessage(message, { existingTasks });
   if (problems.length) fail(problems);
 }
 

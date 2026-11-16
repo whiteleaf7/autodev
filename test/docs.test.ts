@@ -6,7 +6,8 @@ import { memoryRepo } from "../src/repo.ts";
 const repoFiles = {
   "package.json": `{"name":"autodev","scripts":{"test":"pnpm -r test","board":"pnpm --filter @repo/devboard start"}}`,
   "tools/devboard/package.json": `{"name":"@repo/devboard","scripts":{"start":"node src/server.ts"}}`,
-  "tools/devboard/src/mcp.ts": `server.registerTool(\n  "get_overview",\n  {});\nserver.registerTool("create_task", {});\n`,
+  "tools/devboard/src/mcp.ts": "export {};\n",
+  "tools/harness/devboard-tools.json": `["get_overview","create_task"]`,
   "docs/product.md": "# プロダクト\n",
   "docs/decisions/0001-first.md": "# 0001. 最初\n",
   ".gitignore": ".dev/\nnode_modules/\n",

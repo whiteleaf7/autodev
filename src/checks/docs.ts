@@ -3,6 +3,7 @@
 
 import { posix } from "node:path";
 import { packageDirs, parseJson, type Problem, type Repo } from "../repo.ts";
+import { readToolsFile } from "./devboard-tools.ts";
 
 const isDoc = (path: string) =>
   path === "CLAUDE.md" || path === "AGENTS.md" || path === "README.md" || /^docs\/.+\.md$/.test(path);
@@ -109,7 +110,6 @@ function gatherFacts(repo: Repo): Facts {
       }
     }
   }
-  const mcp = repo.read("tools/devboard/src/mcp.ts");
   // .gitignore のうち、ワイルドカードを使わない行だけを読む（無視されるパスは、複製や他の環境には無い）
   const ignores = repo.files
     .filter((f) => f === ".gitignore" || f.endsWith("/.gitignore"))
@@ -127,7 +127,7 @@ function gatherFacts(repo: Repo): Facts {
     decisions: new Set(
       repo.files.map((f) => /^docs\/decisions\/(\d{4})-/.exec(f)?.[1]).filter((n): n is string => Boolean(n)),
     ),
-    tools: mcp === null ? null : new Set([...mcp.matchAll(/registerTool\(\s*"([^"]+)"/g)].map((m) => m[1]!)),
+    tools: readToolsFile(repo),
     exists: (path) => {
       const trimmed = path.replace(/\/$/, "");
       return files.has(trimmed) || repo.files.some((f) => f.startsWith(`${trimmed}/`));

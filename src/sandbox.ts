@@ -15,6 +15,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
+import { devboardHome } from "./devboard-cli.ts";
 import type { Edit } from "./scenario.ts";
 import { LINKED_MODULES_ENV, linkPackageModules } from "./snapshot.ts";
 
@@ -22,6 +23,21 @@ const SANDBOX_ENV = { ...process.env, ...LINKED_MODULES_ENV };
 
 function git(cwd: string, args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+}
+
+// 評価のシナリオが見本にしているコード。切り出す前の devboard（決定記録 0044）を固定して持ち、複製では tools/devboard/ に置く。
+// 固定してあるので、devboard 本体が変わっても、シナリオが探す文字列は変わらない
+const FIXTURE_PREFIX = "tools/harness/eval/fixture/devboard/";
+const FIXTURE_DEST = "tools/devboard/";
+
+function overlayFixture(root: string, template: string, files: string[]): void {
+  for (const file of files.filter((f) => f.startsWith(FIXTURE_PREFIX))) {
+    const to = join(template, FIXTURE_DEST, file.slice(FIXTURE_PREFIX.length));
+    mkdirSync(dirname(to), { recursive: true });
+    cpSync(join(root, file), to, { verbatimSymlinks: true });
+  }
+  // 見本の依存は、いま入れてある devboard のものを使う（同じ依存で動くコードなので）
+  linkPackageModules(realpathSync(devboardHome()), join(template, FIXTURE_DEST), ["package.json"]);
 }
 
 export function createTemplate(repoRoot: string): string {
@@ -35,6 +51,7 @@ export function createTemplate(repoRoot: string): string {
     cpSync(from, join(template, file), { verbatimSymlinks: true });
   }
   linkPackageModules(root, template, files);
+  overlayFixture(root, template, files);
   git(template, ["init", "-q"]);
   // .gitignore の「node_modules/」は、リンクを含むディレクトリの中身までは隠さない場合に備える
   mkdirSync(join(template, ".git", "info"), { recursive: true });

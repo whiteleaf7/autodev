@@ -7,9 +7,11 @@ import { spawnSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { checkConventions } from "./checks/conventions.ts";
+import { checkDevboardTools } from "./checks/devboard-tools.ts";
 import { checkDocs } from "./checks/docs.ts";
 import { checkGate } from "./checks/gate.ts";
 import { checkRecords } from "./checks/records.ts";
+import { readToolNames } from "./devboard-cli.ts";
 import { withoutGitEnv } from "./env.ts";
 import { loadRepo, type Problem, type Repo } from "./repo.ts";
 import { LINKED_MODULES_ENV, snapshotIndex } from "./snapshot.ts";
@@ -22,7 +24,13 @@ export function formatProblem({ check, file, line, message }: Problem): string {
 
 // 終了コードを返す
 function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): number {
-  const problems = [...checkGate(repo), ...checkConventions(repo), ...checkRecords(repo), ...checkDocs(repo)];
+  const problems = [
+    ...checkGate(repo),
+    ...checkConventions(repo),
+    ...checkRecords(repo),
+    ...checkDocs(repo),
+    ...checkDevboardTools(repo, readToolNames(dir)),
+  ];
   if (problems.length) {
     for (const problem of problems) console.error(formatProblem(problem));
     console.error(

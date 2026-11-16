@@ -7,7 +7,7 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readF
 import { availableParallelism, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { board } from "@repo/devboard/src/board-db.ts";
+import { snapshotBoard } from "./devboard-cli.ts";
 import { loadScenarios, type Scenario } from "./scenario.ts";
 import { applyEdits, cloneTemplate, createTemplate, removeDir, run } from "./sandbox.ts";
 import { formatSummary, summarize, type Outcome, type Result } from "./score.ts";
@@ -22,9 +22,9 @@ function gateCommand(): string {
 }
 
 // ボードは git の外の SQLite にある（決定記録 0011）。いまのボードの写しを 1 つ取り、シナリオごとにそれを複製して渡す
-function snapshotBoard(): string {
+function takeBoardSnapshot(): string {
   const file = join(mkdtempSync(join(tmpdir(), "autodev-eval-board-")), "board.sqlite");
-  board().exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
+  snapshotBoard(file, ROOT);
   return file;
 }
 
@@ -47,7 +47,7 @@ async function judge(scenario: Scenario, template: string, gate: string, boardSn
     }
 
     const { code, output } = scenario.board.length
-      ? await run("node", ["tools/devboard/src/ops-cli.ts", JSON.stringify(scenario.board)], dir, env)
+      ? await run("devboard", ["apply", JSON.stringify(scenario.board)], dir, env)
       : scenario.commit
         ? await commit(dir, scenario.commit, env)
         : await run("sh", ["-c", gate], dir, env);
@@ -124,7 +124,7 @@ const scenarios = loadScenarios(join(ROOT, "tools/harness/eval", values.set)).fi
   (s) => !values.family || s.family === values.family,
 );
 const template = createTemplate(ROOT);
-const boardSnapshot = snapshotBoard();
+const boardSnapshot = takeBoardSnapshot();
 try {
   if (values.validate) {
     process.exitCode = validate(scenarios, template) ? 1 : 0;

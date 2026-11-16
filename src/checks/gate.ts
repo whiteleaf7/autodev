@@ -72,11 +72,15 @@ function skippedTests(repo: Repo): Problem[] {
   });
 }
 
+// パッケージをディレクトリごと消したときは、対象のコードごと消したので、テストや tsconfig が減ったことを止めない。
+// package.json だけ消して中身を残すような消し方は、ディレクトリにファイルが残るので止める
+const removedWhole = (repo: Repo, dir: string) => dir !== "" && !repo.files.some((f) => f.startsWith(`${dir}/`));
+
 function removedTests(repo: Repo, base: Tree): Problem[] {
   const count = (tree: Tree, dir: string) =>
     tree.files.filter((f) => isTestFile(f) && f.startsWith(`${dir}/`)).reduce((n, f) => n + testCases(tree.read(f)), 0);
   return packageDirs(base)
-    .filter(Boolean)
+    .filter((dir) => dir && !removedWhole(repo, dir))
     .flatMap((dir) => {
       const before = count(base, dir);
       const after = count(repo, dir);
@@ -137,7 +141,8 @@ function tsconfigs(repo: Repo): Problem[] {
   const problems: Problem[] = [];
   const add = (file: string, message: string) => problems.push({ check: "loosened-tsconfig", file, message });
   for (const file of repo.base?.files.filter(isTsConfig) ?? []) {
-    if (!repo.files.includes(file)) add(file, "tsconfig が消えている");
+    if (!repo.files.includes(file) && !removedWhole(repo, file.slice(0, Math.max(0, file.lastIndexOf("/")))))
+      add(file, "tsconfig が消えている");
   }
   for (const file of repo.files.filter(isTsConfig)) {
     const now = parseTsConfig(repo.read(file));

@@ -18,6 +18,24 @@ test("無条件にテストを飛ばす書き方を見つけ、条件つきの s
   assert.deepEqual(checksOf({ [file]: `const text = "test.skip(";\n${passing}` }), [], "文字列の中は見ない");
 });
 
+test("パッケージをディレクトリごと消したときは、テストや tsconfig が減ったことを止めない", () => {
+  const manifest = { "tools/x/package.json": `{"scripts":{"typecheck":"tsc --noEmit","test":"node --test"}}` };
+  const base = {
+    ...manifest,
+    "tools/x/tsconfig.json": `{"compilerOptions":{"strict":true}}`,
+    "tools/x/test/a.test.ts": passing,
+    "tools/y/package.json": manifest["tools/x/package.json"],
+  };
+  assert.deepEqual(checksOf({ "tools/y/package.json": manifest["tools/x/package.json"] }, base), []);
+  // package.json だけを消して、テストを残す消し方は、パッケージごとではない
+  assert.ok(checksOf({ "tools/x/test/a.test.ts": passing }, base).includes("loosened-tsconfig"));
+  // 中身を一部だけ消すのも通さない
+  assert.deepEqual(checksOf({ ...manifest, "tools/y/package.json": manifest["tools/x/package.json"] }, base), [
+    "removed-test",
+    "loosened-tsconfig",
+  ]);
+});
+
 test("テストが基点より減ったら止め、パッケージの中での移動は通す", () => {
   const manifest = { "tools/x/package.json": `{"scripts":{"typecheck":"tsc --noEmit","test":"node --test"}}` };
   const base = { ...manifest, "tools/x/test/a.test.ts": passing, "tools/x/test/b.test.ts": passing };

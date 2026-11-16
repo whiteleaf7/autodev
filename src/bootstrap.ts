@@ -143,18 +143,18 @@ export function renderPackageJson(name: string, title: string): string {
       packageManager: rootPkg.packageManager,
       engines: rootPkg.engines,
       scripts: {
-        board: "pnpm --filter @repo/devboard start",
-        "board:open": "pnpm --filter @repo/devboard open",
-        "board:tailscale": "pnpm --filter @repo/devboard tailscale",
-        "board:import": "pnpm --filter @repo/devboard import-history",
-        "board:show": "node tools/devboard/src/board-cli.ts",
-        "board:apply": "node tools/devboard/src/ops-cli.ts",
+        board: "devboard start",
+        "board:open": "devboard open",
+        "board:tailscale": "devboard tailscale",
+        "board:import": "devboard import-history",
+        "board:show": "devboard show",
+        "board:apply": "devboard apply",
         typecheck: "pnpm -r typecheck",
         test: "pnpm -r test",
         check: "node tools/harness/src/check.ts",
         format: "biome format --write",
         lint: "oxlint",
-        recall: "node tools/devboard/src/recall-cli.ts",
+        recall: "devboard recall",
         land: "node tools/harness/src/land.ts",
         "worktree:prune": "node tools/harness/src/prune.ts",
         "harness:eval": "node tools/harness/src/eval.ts",
@@ -221,7 +221,7 @@ export function renderAgentGuide(name: string, title: string): string {
 - 子タスクがすべて終わったら、親タスクも閉じる
 - 不要になったタスクは消さずに \`cancelled\` にし、理由を \`note\` に残す
 - 設計上の判断（ライブラリ、構成、データ形式、プロトコル）をしたら \`create_decision\` で記録する。覆すときは新しい記録を作り、古い方を \`置き換え\` にする
-- ボード（タスク・教訓・マイルストーン）は git の外の SQLite にある（決定記録 0011）。MCP が使えないときは、読み取りは \`pnpm board:show\`（\`tools/devboard/src/board-cli.ts\`）、書き込みは \`pnpm board:apply '<操作の JSON の配列>'\`（MCP のツールと同じ名前と入力の形。\`tools/devboard/src/ops.ts\`）を使う。ボードのファイルは直接触らない
+- ボード（タスク・教訓・マイルストーン）は git の外の SQLite にある（決定記録 0011）。MCP が使えないときは、読み取りは \`pnpm board:show\`、書き込みは \`pnpm board:apply '<操作の JSON の配列>'\`（MCP のツールと同じ名前と入力の形）を使う。ボードのファイルは直接触らない
 - ボードの決まりに反する書き込み（メモの無い done・cancelled・blocked、動かした結果の無い振る舞いのタスクの done、AI のタスクの review、子が残る親の done など）は、store が断る。断られたら、表示された理由のとおりに直して書き直す
 
 ### まとめて頼まれたとき（\`/goal\` など）
@@ -374,7 +374,6 @@ pnpm test
 - \`.mcp.json\` / \`.claude/\` / \`.codex/\`: 各エージェント向けの MCP サーバ（\`devboard\`）とフックの設定
 - \`apps/\`: アプリケーション本体
 - \`packages/\`: 共有パッケージ
-- \`tools/devboard/\`: 開発ダッシュボード（Web UI）・MCP サーバ・CLI（\`@repo/devboard\`）
 - \`tools/harness/\`: ゲート検査・評価ハーネス・\`pnpm land\`・Stop フック・\`pnpm bootstrap\`（\`@repo/harness\`）
 - \`tools/verify/\`: ヘッドレス Chrome（DevTools Protocol）による画面確認ツール（\`@repo/verify\`）
 - \`docs/\`: プロダクト仕様・アーキテクチャ・検証手順・ハーネス・決定記録（\`docs/decisions/\`）
@@ -422,7 +421,6 @@ ${name}/
   packages/             # 共有パッケージを置く場所
   spikes/               # 使い捨ての技術検証コードを置く場所
   tools/
-    devboard/           # 開発ボード Web UI・MCP サーバ (devboard)・CLI・SQLite ストア (@repo/devboard)
     harness/            # ゲート (pnpm check)・評価ハーネス・取り込み (pnpm land)・Stop フック・bootstrap (@repo/harness)
     verify/             # ヘッドレス Chrome による画面確認・待機ツール (@repo/verify)
   docs/
@@ -433,12 +431,14 @@ ${name}/
     decisions/          # 設計判断の記録 (ADR: NNNN-slug.md)
 \`\`\`
 
-## 開発ボードと MCP / CLI (\`tools/devboard\`)
+## 開発ボードと MCP / CLI (\`devboard\` コマンド)
+
+開発ボードの道具は、全プロジェクトで共有する \`devboard\` コマンド（\`~/github/devboard\`）で、このリポジトリには入っていない。入れ方はそのリポジトリの README の「入れる」。\`pnpm board*\` と \`pnpm recall\` はそのコマンドを呼ぶ。
 
 - **保存先**: git の外の SQLite（既定は \`~/.devboard/boards/${name}.sqlite\`、\`DEVBOARD_DB\` で変更可。決定記録 0011）。変更はすべてイベント表に追記し、同じトランザクションで現在状態の表を更新する
-- **MCP サーバ (\`devboard\`)**: \`tools/devboard/src/mcp.ts\`（\`.mcp.json\` および \`.codex/config.toml\` で登録）。\`get_overview\`、\`list_tasks\`、\`get_task\`、\`create_task\`、\`update_task\`、\`set_milestone\`、\`list_decisions\`、\`get_decision\`、\`create_decision\`、\`set_decision_status\`、\`open_dashboard\`、\`recall\`、\`add_lesson\` を提供する
-- **CLI (\`pnpm board:show\` / \`pnpm board:apply\` / \`pnpm recall\`)**: \`tools/devboard/src/board-cli.ts\`・\`tools/devboard/src/ops-cli.ts\`・\`tools/devboard/src/recall-cli.ts\`。MCP を使わないエージェントやシェルからも同じ読み書き・検索ができる（決定記録 0039）
-- **Web ダッシュボード**: \`tools/devboard/src/server.ts\`（\`pnpm board\` / \`pnpm board:open\` / \`pnpm board:tailscale\`）。\`127.0.0.1\` で待ち受け、タスク一覧・詳細と活動グラフ（\`/activity\`、決定記録 0017）を読み取り専用で表示する（決定記録 0038）
+- **MCP サーバ (\`devboard mcp\`)**: \`.mcp.json\` および \`.codex/config.toml\` で登録する。\`get_overview\`、\`list_tasks\`、\`get_task\`、\`create_task\`、\`update_task\`、\`set_milestone\`、\`list_decisions\`、\`get_decision\`、\`create_decision\`、\`set_decision_status\`、\`open_dashboard\`、\`recall\`、\`add_lesson\` を提供する
+- **CLI (\`pnpm board:show\` / \`pnpm board:apply\` / \`pnpm recall\`)**: それぞれ \`devboard show\`・\`devboard apply\`・\`devboard recall\`。MCP を使わないエージェントやシェルからも同じ読み書き・検索ができる（決定記録 0039）
+- **Web ダッシュボード**: \`devboard start\`（\`pnpm board\` / \`pnpm board:open\` / \`pnpm board:tailscale\`）。\`127.0.0.1\` で待ち受け、タスク一覧・詳細と活動グラフ（\`/activity\`、決定記録 0017）を読み取り専用で表示する（決定記録 0038）
 
 ## ゲートと評価ハーネス (\`tools/harness\`)
 
@@ -539,7 +539,6 @@ export function writeBootstrapFiles(opts: BootstrapOptions): void {
   );
 
   copyTreeFiltered(join(SOURCE_ROOT, ".githooks"), join(targetDir, ".githooks"));
-  copyTreeFiltered(join(SOURCE_ROOT, "tools/devboard"), join(targetDir, "tools/devboard"));
   copyTreeFiltered(
     join(SOURCE_ROOT, "tools/harness"),
     join(targetDir, "tools/harness"),
@@ -619,33 +618,32 @@ export function bootstrapProject(opts: BootstrapOptions): void {
   }
   run("pnpm", ["install"]);
 
-  const initScript = `
-    import("./tools/devboard/src/store.ts").then(({ updateProject, setMilestone, createTask, readTasks }) => {
-      updateProject((p) => ({
-        ...p,
-        name: ${JSON.stringify(opts.title)},
-        summary: ${JSON.stringify(opts.summary)},
-      }));
-      setMilestone({
+  // devboard コマンドで、ボードの表示名・マイルストーン・最初のタスクを入れる
+  const initOps = [
+    { op: "set_project", args: { name: opts.title, summary: opts.summary } },
+    {
+      op: "set_milestone",
+      args: {
         id: "M0",
         title: "開発基盤の整備",
         goal: "AI 自律駆動の仕組み（開発ボード・MCP / CLI・ハーネス・画面確認ツール）を整える",
         status: "done",
-      });
-      if (readTasks().tasks.length === 0) {
-        createTask({
-          title: "開発基盤とダッシュボード環境を整備する",
-          description: "自律開発基盤とダッシュボードのツールを展開し、新規プロジェクトを進められる準備を行う。",
-          status: "done",
-          priority: "high",
-          milestone: "M0",
-          paths: ["tools/", "docs/", ".githooks/", ".github/"],
-          note: "動かした: \`pnpm bootstrap\` → 開発基盤の展開・pnpm check・初期コミットが完了",
-        });
-      }
-    });
-  `;
-  run("node", ["-e", initScript]);
+      },
+    },
+    {
+      op: "create_task",
+      args: {
+        title: "開発基盤とダッシュボード環境を整備する",
+        description: "自律開発基盤とダッシュボードのツールを展開し、新規プロジェクトを進められる準備を行う。",
+        status: "done",
+        priority: "high",
+        milestone: "M0",
+        paths: ["tools/", "docs/", ".githooks/", ".github/"],
+        note: "動かした: `pnpm bootstrap` → 開発基盤の展開・pnpm check・初期コミットが完了",
+      },
+    },
+  ];
+  run("devboard", ["apply", JSON.stringify(initOps)]);
 
   const filesToStage = execFileSync("git", ["ls-files", "-co", "--exclude-standard", "-z"], {
     cwd,
