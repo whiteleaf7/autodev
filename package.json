@@ -6,7 +6,7 @@
     "check": "node src/check.ts",
     "eval": "node src/eval.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.ts"
+    "test": "node --test --test-timeout=120000 test/*.test.ts"
   },
   "dependencies": {
     "zod": "^4.6.7"
