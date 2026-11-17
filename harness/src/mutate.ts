@@ -1,6 +1,6 @@
 // 変異テスト。ソースに小さなバグを 1 つずつ入れて、そのパッケージの型チェックとテストが止めるかを見る。
 // 止められなかった変異（生き残り）は、テストが確かめていない振る舞いを指している。
-//   node src/mutate.ts [対象のファイル...]      既定は tools/ の src と public
+//   node src/mutate.ts <対象のファイル>...
 
 import { projectRoot } from "./project-root.ts";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -64,17 +64,12 @@ function mutantsOf(file: string, text: string): Mutant[] {
 const TIMEOUT_MS = 180_000;
 
 const repo = loadRepo(ROOT);
-const requested = process.argv.slice(2).filter((arg) => arg !== "--all");
-// 引数なしで全体（数十分）が回ってしまわないよう、全体は --all のときだけ回す
-if (!requested.length && !process.argv.includes("--all")) {
-  console.error(
-    "使い方: autodev mutate <ファイル>…（tools/ の全体は --all。約 600 件で、10 コアの Mac で約 50 分かかる）",
-  );
+const targets = process.argv.slice(2);
+// 全体を回す形（--all）はやめた。約 50 分かかって回されなくなり、生き残りの多くは振る舞いの変わらない変異だった（nagaya の T-270）
+if (!targets.length || targets.some((arg) => arg.startsWith("-"))) {
+  console.error("使い方: autodev mutate <ファイル>…（変えたファイルを指定する。1 ファイルで数十秒から数分）");
   process.exit(2);
 }
-const targets = requested.length
-  ? requested
-  : repo.files.filter((f) => /^tools\/[^/]+\/(src\/.+\.ts|public\/.+\.js)$/.test(f));
 const packages = packageDirs(repo).filter(Boolean);
 const packageOf = (file: string) =>
   packages.filter((dir) => file.startsWith(`${dir}/`)).toSorted((a, b) => b.length - a.length)[0];
