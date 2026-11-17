@@ -14,6 +14,9 @@ export function formatTimings(stages: Stage[]): string {
 
 export type Buffered = { status: number; output: string };
 
+// 子が終わったあと、出力の残りが届くのを待つ時間。子が裏に残したプロセスが出力のパイプを握ったままだと、close は来ない
+const DRAIN_MS = 1000;
+
 // 標準出力と標準エラーを、届いた順に 1 つにためる。並列に動かしたものを、あとで順に表示するために使う
 export function runBuffered(
   command: string,
@@ -29,8 +32,20 @@ export function runBuffered(
     child.stderr.on("data", (chunk) => {
       output += chunk;
     });
+    let drain: NodeJS.Timeout | undefined;
     child.on("error", (error) => done({ status: 1, output: `${output}${command} を起動できない: ${error.message}\n` }));
-    child.on("close", (code) => done({ status: code ?? 1, output }));
+    child.on("exit", (code) => {
+      drain = setTimeout(() => {
+        child.stdout.destroy();
+        child.stderr.destroy();
+        const note = `${[command, ...args].join(" ")} が終わったあとも、出力を握ったままのプロセスが残っている（待たずに進めた）\n`;
+        done({ status: code ?? 1, output: `${output}${note}` });
+      }, DRAIN_MS);
+    });
+    child.on("close", (code) => {
+      clearTimeout(drain);
+      done({ status: code ?? 1, output });
+    });
   });
 }
 

@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { childTimeoutMs, throwIfTimeout } from "./child-limit.ts";
 
 export type FileHash = { path: string; hash: string };
 export type Entry = { key: string; at: number };
@@ -26,7 +27,12 @@ export function gateKey(files: FileHash[], environment: string[]): string {
 export function hashFiles(dir: string, paths: string[]): FileHash[] {
   return paths.map((path) => {
     try {
-      return { path, hash: createHash("sha256").update(readFileSync(join(dir, path))).digest("hex") };
+      return {
+        path,
+        hash: createHash("sha256")
+          .update(readFileSync(join(dir, path)))
+          .digest("hex"),
+      };
     } catch {
       return { path, hash: "unreadable" };
     }
@@ -68,13 +74,16 @@ export function parseEntries(text: string | null, now: number): Entry[] {
 export const lookup = (entries: Entry[], key: string): Entry | undefined => entries.find((entry) => entry.key === key);
 
 export function gitCommonDir(root: string): string | null {
+  const args = ["rev-parse", "--path-format=absolute", "--git-common-dir"];
   try {
-    return execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
+    return execFileSync("git", args, {
       cwd: root,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
+      timeout: childTimeoutMs(),
     }).trim();
-  } catch {
+  } catch (e) {
+    throwIfTimeout(e, "git", args);
     return null;
   }
 }
@@ -98,7 +107,9 @@ export function readEntries(file: string, now: number): Entry[] {
 }
 
 export function recordPass(file: string, key: string, now: number): void {
-  const entries = [...readEntries(file, now).filter((entry) => entry.key !== key), { key, at: now }].slice(-MAX_ENTRIES);
+  const entries = [...readEntries(file, now).filter((entry) => entry.key !== key), { key, at: now }].slice(
+    -MAX_ENTRIES,
+  );
   mkdirSync(join(file, ".."), { recursive: true });
   const temp = `${file}.${process.pid}.tmp`;
   writeFileSync(temp, JSON.stringify(entries));

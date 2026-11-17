@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
+import { childTimeoutMs, throwIfTimeout } from "./child-limit.ts";
 
 // pnpm 11 は、写しの中で依存のずれを見つけると pnpm install を始め、リンク先の node_modules を消そうとする
 export const LINKED_MODULES_ENV = { pnpm_config_verify_deps_before_run: "false" };
@@ -40,8 +41,19 @@ export function linkPackageModules(root: string, copy: string, files: string[]):
 export function snapshotIndex(repoRoot: string): { dir: string; files: string[] } {
   const root = realpathSync(repoRoot);
   const dir = mkdtempSync(join(tmpdir(), "autodev-staged-"));
-  const git = (args: string[]) =>
-    execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  const git = (args: string[]) => {
+    try {
+      return execFileSync("git", args, {
+        cwd: root,
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+        timeout: childTimeoutMs(),
+      });
+    } catch (e) {
+      throwIfTimeout(e, "git", args);
+      throw e;
+    }
+  };
   git(["checkout-index", "--all", `--prefix=${dir}/`]);
   const files = git(["ls-files", "-z"]).split("\0").filter(Boolean);
   linkPackageModules(root, dir, files);

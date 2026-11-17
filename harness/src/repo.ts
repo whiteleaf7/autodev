@@ -4,6 +4,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { childTimeoutMs, throwIfTimeout } from "./child-limit.ts";
 import { scan } from "./source.ts";
 
 export type Tree = { files: string[]; read(path: string): string | null };
@@ -22,8 +23,10 @@ function git(root: string, args: string[]): string | null {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
       maxBuffer: 64 * 1024 * 1024,
+      timeout: childTimeoutMs(),
     });
-  } catch {
+  } catch (e) {
+    throwIfTimeout(e, "git", args); // 終わらない git を、「無い」と取り違えない
     return null; // git の管理下でない、または HEAD がまだ無い
   }
 }
@@ -75,10 +78,12 @@ function gitTreeReader(root: string, files: string[], rev: "HEAD" | ""): (path: 
         input: specs.map((spec) => `${spec}\n`).join(""),
         maxBuffer: 512 * 1024 * 1024,
         stdio: ["pipe", "pipe", "ignore"],
+        timeout: childTimeoutMs(),
       });
       const read = parseCatFileBatch(output, specs);
       return new Map(wanted.map((f) => [f, read.get(`${rev}:${f}`) ?? null]));
-    } catch {
+    } catch (e) {
+      throwIfTimeout(e, "git", ["cat-file", "--batch"]);
       return new Map();
     }
   };

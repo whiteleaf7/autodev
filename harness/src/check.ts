@@ -111,16 +111,21 @@ async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv, staged: 
 // テストの中の git が本物のリポジトリを指さないように、子プロセスには渡さない（L-008）
 const childEnv = withoutGitEnv(process.env);
 
-if (process.argv.includes("--staged")) {
+async function main(): Promise<number> {
+  if (!process.argv.includes("--staged")) return runGate(loadRepo(ROOT), ROOT, childEnv, false);
   const staged = snapshotIndex(ROOT);
-  let code: number;
   try {
     console.log(`check: コミットされる中身（index）を ${staged.dir} に写して検査する`);
-    code = await runGate(loadRepo(ROOT, staged), staged.dir, { ...childEnv, ...LINKED_MODULES_ENV }, true);
+    return await runGate(loadRepo(ROOT, staged), staged.dir, { ...childEnv, ...LINKED_MODULES_ENV }, true);
   } finally {
     rmSync(staged.dir, { recursive: true, force: true });
   }
-  process.exit(code);
-} else {
-  process.exit(await runGate(loadRepo(ROOT), ROOT, childEnv, false));
+}
+
+// 検査を回せなかった理由（devboard が無い、外のプロセスが終わらないなど）は、スタックではなく直し方の言葉で出す
+try {
+  process.exit(await main());
+} catch (e) {
+  console.error(`check: ${e instanceof Error ? e.message : String(e)}`);
+  process.exit(1);
 }
