@@ -1,0 +1,9 @@
+#!/bin/sh
+# roborev post-rewrite hook v2 - remaps reviews after rebase/amend
+# 上の行と ROBOREV= の絶対パスは roborev が確かめる（post-commit を参照）。
+# rebase や amend でコミットが書き換わったら、roborev のレビューを新しいコミットに付け替える（決定記録 0012）
+[ -n "${HARNESS_SKIP_REVIEW:-}" ] && exit 0
+ROBOREV="/opt/homebrew/bin/roborev"
+[ -x "$ROBOREV" ] || ROBOREV=$(command -v roborev 2>/dev/null) || exit 0
+export ROBOREV_TELEMETRY_ENABLED=0
+"$ROBOREV" remap --quiet 2>/dev/null || true

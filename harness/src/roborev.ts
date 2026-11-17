@@ -19,10 +19,8 @@ const QUIET_STATUSES = new Set(["ok", "info"]);
 const ACCEPTED = new Set(["repo.guidelines"]);
 
 const HOOKS_ADVICE =
-  "roborev が更新されて、フックの版が上がった可能性がある。autodev は roborev を基盤から外した（docs/harness.md の「AI のコードレビュー（roborev）」）。" +
-  "やめるなら、.githooks/ の roborev の行と、SessionStart の autodev roborev-doctor を外す。" +
-  "使い続けるなら、roborev init や roborev hook install で直さない（roborev の処理が先頭に差し込まれ、ハーネスの評価でレビューを止める条件が効かなくなる）。" +
-  "使い捨てのリポジトリで roborev hook install を実行し、生成されたフックの 2 行目の印と ROBOREV= のパスだけを写す";
+  "roborev が更新されて、フックの版が上がった可能性がある。docs/harness.md の「roborev のフックを新しい版に合わせる」の手順で .githooks/ を直す。" +
+  "roborev init や roborev hook install で直さない（roborev の処理が先頭に差し込まれ、ハーネスの評価でレビューを止める条件が効かなくなる）";
 
 export function roborevNotices(doctorOutput: string): string[] {
   let json: unknown;
