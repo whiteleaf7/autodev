@@ -1,5 +1,5 @@
 // git のフック（.githooks/）から呼ばれる。
-//   autodev hook pre-commit              無視されているファイルの混入を確かめ、ステージしたファイルを整形してから、コミットされる中身でゲートを通す
+//   autodev hook pre-commit              無視されているファイルの混入を確かめ、ステージしたファイルを整形してから、コミットされる中身でゲートを通し、差分に当たった教訓を出す
 //   autodev hook commit-msg <ファイル>   コミットメッセージの決まりを確かめる
 //   autodev hook pre-push                main への push を止める
 
@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { checkMessage, filesToFormat, pushesToMain } from "./commit.ts";
-import { readTaskIds } from "./devboard-cli.ts";
+import { lessonChecklist, readTaskIds } from "./devboard-cli.ts";
 
 const ROOT = projectRoot();
 
@@ -59,6 +59,19 @@ function preCommit(): void {
   // 作業ツリーではなく、コミットされる中身でゲートを通す。index の場所（GIT_INDEX_FILE）を引き継ぐため、環境変数はそのまま渡す
   const { status } = spawnSync(process.execPath, [join(import.meta.dirname, "check.ts"), "--staged"], { cwd: ROOT, stdio: "inherit" });
   if (status !== 0) process.exit(status ?? 1);
+  showLessonChecklist();
+}
+
+// 過去の教訓のうち、このコミットの差分に引き金が当たったものだけを出す（T-264）。覚えていなくても、同じ所を変えたときに目に入るようにする。
+// 止めはしない。ゲートを通ったあとに出すのは、コミットの直前の出力として埋もれないようにするため
+function showLessonChecklist(): void {
+  const { stdout } = spawnSync("git", ["-c", "core.quotepath=false", "diff", "--cached", "--no-color", "--no-ext-diff"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  const checklist = stdout ? lessonChecklist(stdout, ROOT) : "";
+  if (checklist) console.error(checklist);
 }
 
 function commitMsg(file: string | undefined): void {

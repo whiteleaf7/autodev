@@ -55,6 +55,16 @@ export function lintDecisionFiles(files: { file: string; text: string }[], cwd: 
   throw new Error(`devboard lint-decisions が失敗した: ${result.stderr.trim()}`);
 }
 
+// 差分（unified）に引き金が当たった教訓の一覧（devboard checklist）。当たらなければ空。
+// 出すだけでコミットは止めないので、devboard が無い・古いときも、例外にせずそのことを返す
+export function lessonChecklist(diff: string, cwd: string): string {
+  const result = spawnSync("devboard", ["checklist"], { cwd, input: diff, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+  if (result.error) return `教訓のチェックリストを出せなかった（${result.error.message}）。${INSTALL_HINT}`;
+  if (result.status !== 0)
+    return `教訓のチェックリストを出せなかった（devboard checklist: ${result.stderr.trim().split("\n")[0]}）。devboard を新しくする`;
+  return result.stdout.trim();
+}
+
 export function snapshotBoard(file: string, cwd: string): void {
   devboardOutput(["snapshot", file], cwd);
 }

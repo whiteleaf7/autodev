@@ -28,7 +28,7 @@
 
 - **保存先**: git の外の SQLite（既定は `~/.devboard/boards/{{name}}.sqlite`、`DEVBOARD_DB` で変更可）。変更はすべてイベント表に追記し、同じトランザクションで現在状態の表を更新する
 - **設定**: プロジェクトの根の `.devboard.json`（recall が中身を隠すパス、動かした結果の書き方の案内など）。devboard はプロジェクトの名前や場所を持たず、ここで受け取る
-- **MCP サーバ (`devboard mcp`)**: `.mcp.json` および `.codex/config.toml` で登録する。`get_overview`、`list_tasks`、`get_task`、`create_task`、`update_task`、`set_milestone`、`list_decisions`、`get_decision`、`create_decision`、`set_decision_status`、`open_dashboard`、`recall`、`add_lesson` を提供する
+- **MCP サーバ (`devboard mcp`)**: `.mcp.json` および `.codex/config.toml` で登録する。`get_overview`、`list_tasks`、`get_task`、`create_task`、`update_task`、`set_milestone`、`list_decisions`、`get_decision`、`create_decision`、`set_decision_status`、`open_dashboard`、`recall`、`add_lesson`、`update_lesson` を提供する
 - **CLI (`pnpm board:show` / `pnpm board:apply` / `pnpm recall`)**: それぞれ `devboard show`・`devboard apply`・`devboard recall`。MCP を使わないエージェントやシェルからも同じ読み書き・検索ができる
 - **Web ダッシュボード**: `devboard start`（`pnpm board` / `pnpm board:open` / `pnpm board:tailscale`）。`127.0.0.1` で待ち受け、タスク一覧・詳細と活動グラフ（`/activity`）を読み取り専用で表示する
 
