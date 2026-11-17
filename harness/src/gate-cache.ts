@@ -43,6 +43,7 @@ export function environmentOf(): string[] {
     `chrome-app=${existsSync("/Applications/Google Chrome.app")}`,
     // テストを絞ると、通った意味が変わる。絞った通りは、絞らない実行に使わせない。salt は、評価が基点の中身を入れる
     `test-scope=${process.env.AUTODEV_TEST_SCOPE ?? ""}`,
+    `test-base=${process.env.AUTODEV_TEST_BASE ?? ""}`,
     `cache-salt=${process.env.AUTODEV_GATE_CACHE_SALT ?? ""}`,
   ];
 }
