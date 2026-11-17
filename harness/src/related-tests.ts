@@ -14,7 +14,8 @@ function referencesOf(file: string, text: string): string[] {
 
 // packageDir の test/*.test.ts のうち、参照をたどって target に届くもの（packageDir からの相対パス）
 export function testsReaching(tree: Tree, packageDir: string, target: string): string[] {
-  const prefix = `${packageDir}/`;
+  // ルートのパッケージ（"."）は、パスの前に何も付かない。"./" を付けると、1 件も見つからない
+  const prefix = packageDir === "." ? "" : `${packageDir}/`;
   const tests = tree.files.filter((f) => f.startsWith(`${prefix}test/`) && f.endsWith(".test.ts"));
   const reaches = (test: string) => {
     const seen = new Set([test]);

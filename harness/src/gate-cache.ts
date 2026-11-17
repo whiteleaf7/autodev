@@ -41,6 +41,9 @@ export function environmentOf(): string[] {
     process.arch,
     `VERIFY_CHROME=${process.env.VERIFY_CHROME ?? ""}`,
     `chrome-app=${existsSync("/Applications/Google Chrome.app")}`,
+    // テストを絞ると、通った意味が変わる。絞った通りは、絞らない実行に使わせない。salt は、評価が基点の中身を入れる
+    `test-scope=${process.env.AUTODEV_TEST_SCOPE ?? ""}`,
+    `cache-salt=${process.env.AUTODEV_GATE_CACHE_SALT ?? ""}`,
   ];
 }
 
@@ -64,18 +67,30 @@ export function parseEntries(text: string | null, now: number): Entry[] {
 
 export const lookup = (entries: Entry[], key: string): Entry | undefined => entries.find((entry) => entry.key === key);
 
-// worktree の間で共有するため、git の共通の .git ディレクトリに置く
-export function cacheFile(root: string): string | null {
+function commonDir(root: string): string | null {
   try {
-    const common = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
+    return execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
       cwd: root,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
-    return join(common, "autodev-gate-cache.json");
   } catch {
     return null;
   }
+}
+
+// worktree の間で共有するため、git の共通の .git ディレクトリに置く。AUTODEV_GATE_CACHE_FILE があれば、そこを使う
+// （評価が、複製ごとに捨てられる .git ではなく、実行をまたいで残る 1 つの記録を、複製の全部に使わせるため）
+export function cacheFile(root: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env.AUTODEV_GATE_CACHE_FILE) return env.AUTODEV_GATE_CACHE_FILE;
+  const common = commonDir(root);
+  return common ? join(common, "autodev-gate-cache.json") : null;
+}
+
+// 評価の複製が使う記録。本物のゲートの記録とは分ける（評価の複製の「通った」を、本物のゲートが使わないように）
+export function evalCacheFile(root: string): string | null {
+  const common = commonDir(root);
+  return common ? join(common, "autodev-eval-gate-cache.json") : null;
 }
 
 export function readEntries(file: string, now: number): Entry[] {

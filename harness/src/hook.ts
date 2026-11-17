@@ -6,7 +6,7 @@
 import { projectRoot } from "./project-root.ts";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { checkMessage, filesToFormat, pushesToMain } from "./commit.ts";
 import { readTaskIds } from "./devboard-cli.ts";
 

@@ -4,7 +4,8 @@
 //   autodev check --staged   index（コミットされる中身）を一時ディレクトリに写して検査する。pre-commit が使う
 
 import { projectRoot } from "./project-root.ts";
-import { rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { checkConventions } from "./checks/conventions.ts";
 import { checkDocs } from "./checks/docs.ts";
 import { checkGate } from "./checks/gate.ts";
@@ -16,6 +17,7 @@ import { loadRepo, type Problem, type Repo } from "./repo.ts";
 import { LINKED_MODULES_ENV, snapshotIndex } from "./snapshot.ts";
 import { cacheFile, environmentOf, gateKey, hashFiles, lookup, readEntries, recordPass } from "./gate-cache.ts";
 import { formatTimings, runBuffered, runInherited, type Stage } from "./steps.ts";
+import { testArgs } from "./test-scope.ts";
 
 const ROOT = projectRoot();
 
@@ -83,7 +85,10 @@ async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise
   for (const result of [lint, typecheck]) process.stdout.write(result.output);
   if (lint.status !== 0 || typecheck.status !== 0) return finish(lint.status !== 0 ? lint.status : typecheck.status);
 
-  const test = await timed("テスト", () => runInherited("pnpm", ["test"], options));
+  const rootTest = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).scripts?.test as string | undefined;
+  const test = await timed("テスト", () =>
+    runInherited("pnpm", testArgs(env, rootTest, existsSync(join(dir, ".git"))), options),
+  );
   if (test !== 0) return finish(test);
 
   if (file && key) recordPass(file, key, Date.now());

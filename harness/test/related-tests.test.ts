@@ -25,3 +25,12 @@ test("import と、子プロセスに渡すパスをたどって、届くテス�
 test("どのテストからも届かないファイルには、空を返す", () => {
   assert.deepEqual(testsReaching(repo, "pkg", "pkg/src/unused.ts"), []);
 });
+
+test("ルートのパッケージ（\".\"）でも、届くテストを見つける（接頭辞に ./ を付けると 1 件も見つからなかった）", () => {
+  const root = memoryRepo({
+    "src/a.ts": "export const a = 1;\n",
+    "test/a.test.ts": 'import { a } from "../src/a.ts";\n',
+    "test/other.test.ts": "// どこにも届かない\n",
+  });
+  assert.deepEqual(testsReaching(root, ".", "src/a.ts"), ["test/a.test.ts"]);
+});

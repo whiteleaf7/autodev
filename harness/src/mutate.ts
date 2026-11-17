@@ -5,7 +5,8 @@
 import { projectRoot } from "./project-root.ts";
 import { readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
+import { directCommand, testFilesOf, type Scripts } from "./mutate-command.ts";
 import { testsReaching } from "./related-tests.ts";
 import { loadRepo, packageDirs } from "./repo.ts";
 import { cloneTemplate, createTemplate, removeDir, run, TIMED_OUT } from "./sandbox.ts";
@@ -62,7 +63,12 @@ function mutantsOf(file: string, text: string): Mutant[] {
 const TIMEOUT_MS = 180_000;
 
 const repo = loadRepo(ROOT);
-const requested = process.argv.slice(2);
+const requested = process.argv.slice(2).filter((arg) => arg !== "--all");
+// 引数なしで全体（数十分）が回ってしまわないよう、全体は --all のときだけ回す
+if (!requested.length && !process.argv.includes("--all")) {
+  console.error("使い方: autodev mutate <ファイル>…（tools/ の全体は --all。約 600 件で、10 コアの Mac で約 50 分かかる）");
+  process.exit(2);
+}
 const targets = requested.length
   ? requested
   : repo.files.filter((f) => /^tools\/[^/]+\/(src\/.+\.ts|public\/.+\.js)$/.test(f));
@@ -71,8 +77,19 @@ const packageOf = (file: string) =>
   packages.filter((dir) => file.startsWith(`${dir}/`)).sort((a, b) => b.length - a.length)[0];
 
 // 届くテストで先に止め、通ったときだけ全部を回す。生き残りの判定は、いつも全部のテストで行う
+const scriptsOf = (dir: string): Scripts => {
+  try {
+    return (JSON.parse(repo.read(dir === "." ? "package.json" : `${dir}/package.json`) ?? "{}").scripts ?? {}) as Scripts;
+  } catch {
+    return {};
+  }
+};
 const commandOf = (file: string) => {
-  const related = testsReaching(repo, packageOf(file) ?? ".", file);
+  const dir = packageOf(file) ?? ".";
+  const related = testsReaching(repo, dir, file);
+  // 単純なスクリプトなら pnpm を介さず直接回す。そうでなければ、これまでの pnpm 経由
+  const direct = directCommand(scriptsOf(dir), related, testFilesOf(repo.files, dir));
+  if (direct) return direct;
   const steps = ["pnpm --silent typecheck", "pnpm --silent test"];
   if (related.length) steps.splice(1, 0, `node --test ${related.join(" ")}`);
   return steps.join(" && ");
