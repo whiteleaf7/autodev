@@ -10,6 +10,7 @@
     "autodev": "bin/autodev.ts"
   },
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "link-bin": "mkdir -p ~/.local/bin && ln -sf \"$PWD/bin/autodev.ts\" ~/.local/bin/autodev",
     "typecheck": "tsc --noEmit && pnpm -r typecheck",
     "test": "node --test --test-timeout=120000 test/*.test.ts && pnpm -r test",

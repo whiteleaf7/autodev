@@ -1,0 +1,6 @@
+#!/bin/sh
+# コミットの前に lint・型・テストを通す（AGENTS.md の決まりをフックで守らせる）
+# 有効にするには: git config core.hooksPath .githooks（pnpm install でも設定される）
+# コミット中の git が渡す変数は、テストが一時リポジトリで動かす git を壊すので外す
+unset GIT_INDEX_FILE GIT_DIR GIT_WORK_TREE GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+pnpm lint && pnpm typecheck && pnpm test
