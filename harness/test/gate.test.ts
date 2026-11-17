@@ -292,3 +292,30 @@ test("tsc を bun check に替えるのは通し、型検査が動かない書�
     [],
   );
 });
+
+test("lint の設定で新しく off にするルールは、同じ行か直前の行に // で理由があれば通す", () => {
+  const file = ".oxlintrc.json";
+  const lines = (rule: string) =>
+    `{\n  "categories": { "correctness": "error" },\n  "rules": {\n    "no-unused-vars": "error"${rule}\n  }\n}\n`;
+  const base = { [file]: lines("") };
+  const off = `,\n    "no-debugger": "off"`;
+  assert.deepEqual(checksOf({ [file]: lines(off) }, base), ["loosened-lint-config"], "理由が無い");
+  assert.deepEqual(checksOf({ [file]: lines(`${off} //`) }, base), ["loosened-lint-config"], "中身の無いコメント");
+  assert.deepEqual(checksOf({ [file]: lines(`${off} // 生成物で使う`) }, base), []);
+  assert.deepEqual(checksOf({ [file]: lines(`,\n    // 生成物で使う${off.slice(1)}`) }, base), [], "直前の行");
+  assert.deepEqual(
+    checksOf({ [file]: lines(`${off}, // 理由\n    "no-empty": "off"`) }, base),
+    ["loosened-lint-config"],
+    "片方だけ理由がある",
+  );
+  // 理由があっても、基点で error だったルールを off にするのは緩め
+  assert.deepEqual(
+    checksOf({ [file]: lines("").replace(`"no-unused-vars": "error"`, `"no-unused-vars": "off" // 理由`) }, base),
+    ["loosened-lint-config"],
+  );
+  const scoped = `,\n    "typescript/no-explicit-any": "off"`;
+  assert.deepEqual(checksOf({ [file]: lines(scoped) }, base), ["loosened-lint-config"], "名前に / がある");
+  assert.deepEqual(checksOf({ [file]: lines(`${scoped} // 理由`) }, base), []);
+  // 基点にあった off は、そのまま通す
+  assert.deepEqual(checksOf({ [file]: lines(off) }, { [file]: lines(off) }), []);
+});

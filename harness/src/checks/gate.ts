@@ -274,6 +274,17 @@ function parseLintConfig(text: string | null): LintConfig | null {
 const labelOf = ({ scope, name }: LintLevel) =>
   scope === "categories" ? `カテゴリ ${name}` : scope === "rules" ? `ルール ${name}` : `${scope} のルール ${name}`;
 
+// off にした行（同じ行の後ろか、直前の行）に、// で理由が書いてあるか。インラインの oxlint-disable に理由を求めるのと同じ
+function hasReason(text: string, name: string): boolean {
+  const lines = text.split("\n");
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  const key = new RegExp(String.raw`"${escaped}"\s*:\s*"(off|allow)"`);
+  const offLines = lines.flatMap((line, i) => (key.test(line) ? [i] : []));
+  const commented = (i: number) =>
+    /\/\/\s*\S/.test(lines[i]?.slice(lines[i].search(key)) ?? "") || /^\s*\/\/\s*\S/.test(lines[i - 1] ?? "");
+  return offLines.length > 0 && offLines.every(commented);
+}
+
 function lintConfig(repo: Repo): Problem[] {
   const before = parseLintConfig(repo.base?.read(LINT_CONFIG) ?? null);
   if (!before) return [];
@@ -296,7 +307,8 @@ function lintConfig(repo: Repo): Problem[] {
   for (const entry of now.levels) {
     if (entry.level > 0 || levelIn(before.levels, entry.scope, entry.name) !== undefined) continue;
     const isOverride = entry.scope !== "categories" && entry.scope !== "rules";
-    if (!isOverride || !addedNow(entry.name)) add(`${labelOf(entry)} を切っている`);
+    if ((!isOverride || !addedNow(entry.name)) && !hasReason(repo.read(LINT_CONFIG) ?? "", entry.name))
+      add(`${labelOf(entry)} を off にしている（意図して外すなら、同じ行か直前の行に // で理由を書く）`);
   }
   for (const pattern of now.ignores)
     if (!before.ignores.includes(pattern)) add(`${pattern} を lint の対象から外している（ignorePatterns）`);
