@@ -48,6 +48,28 @@ autodev を使うプロジェクトには、実行基盤のコードは置かな
 - `AGENTS.md` の共通の規約の区画: `autodev rules-sync` が作る。区画の外が、プロジェクト固有の記述
 - CI: autodev を取って入れてから、`autodev check` を回す（`.github/workflows/check.yml` で、このリポジトリを `git clone` して、`pnpm install` と `pnpm run link-bin`）
 
+## verify を、ほかのプロジェクトのテストから使う
+
+Chrome を操作する補助ライブラリ（`verify/src/chrome.ts` の `withChrome`、`verify/src/screenshot.ts` の `capture` など）は、git 依存として、ほかのプロジェクトのテストから使える。
+
+```json
+{
+  "devDependencies": {
+    "@autodev/verify": "github:whiteleaf7/autodev#path:/verify"
+  },
+  "scripts": {
+    "test": "node --import @autodev/verify/register.js --test test/*.test.ts"
+  }
+}
+```
+
+```ts
+import { withChrome } from "@autodev/verify/src/chrome.ts";
+```
+
+- git 依存は `node_modules` の中に入り、Node は `node_modules` の中の `.ts` の型を剥がして実行しない（`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`）。`verify/register.js` を `--import` で読むと、このパッケージの `.ts` だけは読めるようになる
+- 版は、ロックファイルが固定する（コミット）。更新は `pnpm update @autodev/verify`。コマンド（`autodev check` など）と違い、ライブラリは、更新するまで固定の版が使われる
+
 ## 構成
 
 - `harness/`: ゲート・フック・取り込み・評価の本体（`@autodev/harness`）。テストもここにある
