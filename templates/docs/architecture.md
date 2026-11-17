@@ -37,7 +37,7 @@
 ゲート・フック・取り込み・評価・画面確認は、全プロジェクトで共有する別リポジトリ（`~/github/autodev`。公開は `https://github.com/whiteleaf7/autodev`）の `autodev` コマンドが持つ。仕組みの説明は、そのリポジトリの README と `docs/harness.md` にある。ここには、このプロジェクトとの接点だけを書く。
 
 - **ゲート (`pnpm check`)**: `autodev check`。評価の緩め・規約・決定記録・ドキュメント・共通の規約の検査のあと、`pnpm lint`・`pnpm typecheck`・`pnpm test`
-- **フック**: `.githooks/` が `autodev hook <名前>` を、`.claude/settings.json` と `.codex/hooks.json` が `autodev stop-hook` と `autodev roborev-doctor` を呼ぶ
+- **フック**: `.githooks/` が `autodev hook <名前>` を、`.claude/settings.json` と `.codex/hooks.json` が `autodev stop-hook` を呼ぶ
 - **取り込み (`pnpm land`)**: `autodev land`。`origin/main` へ rebase して `pnpm check` を通し、PR 作成と CI 通過後に rebase マージする
 - **評価 (`pnpm harness:selftest`)**: `autodev eval`。シナリオは `.autodev/eval/public/`、点数の推移は `.autodev/history.jsonl`
 - **画面確認**: `autodev screenshot`（ヘッドレス Chrome で画面を撮る）、`autodev windows`（macOS のウィンドウ一覧を JSON で取る）

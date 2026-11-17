@@ -1,12 +1,5 @@
 #!/bin/sh
-# roborev pre-push hook v3 - flushes pending post-commit batches before push
-# 上の行と ROBOREV= の絶対パスは roborev が確かめる（post-commit を参照）。
-# main への push を止める（決定記録 0015）。そのあと、まだ積んでいないレビューを roborev に渡す。roborev は push を止めない（決定記録 0012）
+# main への push を止める
 # autodev コマンドが無いと、検査を飛ばしてコミットが通ってしまうので、止めて入れ方を知らせる
 command -v autodev >/dev/null 2>&1 || { echo "autodev コマンドが無い。https://github.com/whiteleaf7/autodev の README の「導入する」に従って入れる" >&2; exit 1; }
-autodev hook pre-push || exit 1
-[ -n "${HARNESS_SKIP_REVIEW:-}" ] && exit 0
-ROBOREV="/opt/homebrew/bin/roborev"
-[ -x "$ROBOREV" ] || ROBOREV=$(command -v roborev 2>/dev/null) || exit 0
-export ROBOREV_TELEMETRY_ENABLED=0
-"$ROBOREV" post-commit --flush-push 2>/dev/null || true
+exec autodev hook pre-push

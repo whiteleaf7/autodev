@@ -61,7 +61,6 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 - `pre-commit`: `.gitignore` で無視されているファイルの強制追加を止め、ステージしたファイルを整形してステージし直してから、`autodev check --staged` を実行する。通ったら、ステージした差分に引き金が当たった教訓を出す（止めない。「記録を引き出す」）。`--staged` は index を OS の一時ディレクトリに写し（`git checkout-index`。`git commit <パス>` や `-a` の一時的な index も GIT_INDEX_FILE から読む）、`node_modules` を 1 つずつリンクして、そこでゲートを回す。ステージしていない変更や追跡していないファイルで合否が変わらないようにするため（評価のシナリオ `pub-commits-09`・`pub-commits-10`）。lint・型チェック・テストには GIT_ で始まる環境変数を渡さない（linked worktree では git が GIT_DIR を絶対パスで渡し、テストの中の git が本物のリポジトリを指すため。L-008）
 - `commit-msg`: 件名が Conventional Commits で英語であること、`Task:` の ID がボードにあることを確かめる
 - `pre-push`: main への push を止める
-- `post-commit` / `post-rewrite` / `pre-push`: roborev（AI のコードレビュー、）が入っていれば、コミットのレビューを裏で積む／rebase や amend のあとにレビューを付け替える／push の前に積み残しを渡す。ゲートではないので、コミットは止めない。roborev が無い環境や、`HARNESS_SKIP_REVIEW` があるとき（ハーネスの評価のシナリオのコミット）は何もしない
 
 ## 返答の差し戻し（Stop フック）
 
@@ -84,25 +83,14 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 
 ## AI のコードレビュー（roborev）
 
-コミットのたびに、roborev のデーモンが Claude Code でそのコミットをレビューし、指摘を `~/.roborev` に溜める。指摘は閉じるまで残る。
+基盤には入れない。以前は、コミットのたびに roborev（`https://www.roborev.io/`）が Claude Code でレビューしていたが、nagaya の 151 件のレビューで、閉じた指摘も直した指摘も 0 件、評価のシナリオにしたのは 1 件だった。中身のある指摘はあったが、読む流れが無く、何も直らなかった。読む段を重ねる代わりに、動かして確かめる方（テスト、画面の確認、評価のシナリオ）に寄せる（nagaya の決定記録 0063）。
 
-読むだけのレビューは、動かせば一度で分かる誤りを見落とす。だから roborev はゲートにせず、レビューの段数や effort も増やさない。中身のある指摘で穴が見つかったら、先にその穴を突く評価のシナリオ（`.autodev/eval/public/`）を足して、`autodev eval --set public` で止まらないことを確かめてから直す。以後はシナリオがその穴を守る（例: job 23 の、カテゴリで有効なだけのルールを overrides で切る穴は `pub-eval-weakening-14`）。
+前から roborev のフックを入れているプロジェクトのために、次は残す。使うプロジェクトが無くなったら消す。
 
-- 見る: `roborev job show HEAD`（コミットのレビュー）/ `roborev job list` / `roborev tui`
-- 直す: `roborev fix <ジョブ ID>`、直さない指摘は理由を `roborev job comment` に書いて `roborev job close`
-- 重い変更を深く見たいとき: `roborev review --reasoning high <コミット>`
-- 設定はリポジトリではなく `~/.roborev/config.toml`（エージェント `claude-code`、モデル `claude-sonnet-5-5`、`review_reasoning = "medium"`、`isolate_reviews = true`）。Claude のサブスクの利用枠を使い、API キーは使わない
-- フックは自前だが、roborev が自分のフックと見なす印（2 行目）と `ROBOREV=` の絶対パスを入れてあるので、`roborev doctor` も警告せず、`roborev init` も上書きしない。印やパスの行は消さない
-- 匿名の利用統計は環境変数 `ROBOREV_TELEMETRY_ENABLED=0` で止める（config のキーは無い）。フックでも付けるが、手で起動するデーモンや CLI のために、シェルの設定（`~/.zshenv`）にも書いておく
-- Claude Code のセッションの始めに、`.claude/settings.json` の SessionStart フックが `harness/src/roborev-doctor.ts` を実行する。`roborev doctor --json` に警告や失敗があれば、AI のコンテキストに「roborev の注意」として出る（承知のうえで残している警告は `harness/src/roborev.ts` の `ACCEPTED`）。roborev が入っていなければ何も出ない
+- `autodev roborev-doctor`: `roborev doctor --json` に警告や失敗があれば、セッションの始めに知らせる
+- 評価の複製に付ける `HARNESS_SKIP_REVIEW`: 複製のコミットで、フックがレビューを積まないようにする
 
-### roborev のフックを新しい版に合わせる
-
-roborev の更新でフックの版（印の `v5` など）が上がると、セッションの始めに `repo.hooks` の注意が出る。`roborev init` や `roborev hook install` では直さない（roborev の処理を先頭に差し込むので、`HARNESS_SKIP_REVIEW` の条件が効かなくなる）。
-
-1. 使い捨てのリポジトリ（`git init` のあと `.githooks/` を作り、`git config core.hooksPath .githooks`）で `roborev hook install` を実行し、生成されたフックを読む
-2. `.githooks/` の `post-commit`・`post-rewrite`・`pre-push` を見比べ、2 行目の印、`ROBOREV=` のパス、呼んでいるコマンドを新しい版に合わせる。`HARNESS_SKIP_REVIEW` と `ROBOREV_TELEMETRY_ENABLED` の行は残す。生成されるフックが増えていれば、同じ形で足す
-3. `roborev doctor` で `repo.hooks` が ok になったことを確かめる。`autodev eval --set public` のあと、`roborev repo list` に評価用の複製が無いこと（評価の複製でレビューが積まれていないこと）を確かめる
+やめるときは、`.githooks/` の `post-commit`・`post-rewrite` と `pre-push` の roborev の行、`.claude/settings.json`・`.codex/hooks.json` の SessionStart の `autodev roborev-doctor` を外す。`~/.roborev` の記録は消さない。
 
 ## CI（GitHub Actions）
 

@@ -6,7 +6,7 @@ AI が自律して開発を回すための仕組み（ゲート、フック、�
 
 - `package.json` のスクリプトが `autodev` を呼ぶ: `pnpm check`（`autodev check`）、`pnpm land`（`autodev land`）、`pnpm worktree:prune`（`autodev prune`）、`pnpm harness:selftest`・`pnpm harness:eval`（`autodev eval`）、`pnpm harness:mutate`（`autodev mutate`）
 - `.githooks/` のフックは、`autodev hook <名前>` を呼ぶ（`git config core.hooksPath .githooks`。`pnpm install` でも設定される）
-- `.claude/settings.json` と `.codex/hooks.json` のフックは、`autodev roborev-doctor` と `autodev stop-hook` を呼ぶ
+- `.claude/settings.json` と `.codex/hooks.json` のフックは、`autodev stop-hook` を呼ぶ
 - CI（`.github/workflows/check.yml`）は、devboard と autodev を GitHub から取って入れてから、`pnpm check` を回す
 
 ## このプロジェクトのデータ

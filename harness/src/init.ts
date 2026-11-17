@@ -98,7 +98,7 @@ export function writeInitFiles(opts: InitOptions): void {
   const vars = { name: opts.name, title: opts.title, summary: opts.summary, region: renderRegion(readCommonRules()) };
   mkdirSync(targetDir, { recursive: true });
   for (const rel of files(TEMPLATES_DIR)) writeRendered(join(TEMPLATES_DIR, rel), join(targetDir, rel), vars);
-  // フックは、autodev hook を呼ぶだけの数行。roborev の印を含むので、雛形をそのまま写す
+  // フックは、autodev hook を呼ぶだけの数行なので、雛形をそのまま写す
   for (const rel of files(GITHOOKS_DIR)) {
     const to = join(targetDir, ".githooks", rel);
     mkdirSync(dirname(to), { recursive: true });
@@ -112,8 +112,7 @@ export function initProject(opts: InitOptions): void {
   if (opts.filesOnly) return;
 
   const cwd = realpathSync(opts.targetDir);
-  const run = (cmd: string, args: string[], env: NodeJS.ProcessEnv = {}) =>
-    execFileSync(cmd, args, { cwd, stdio: "inherit", env: { ...process.env, ...env } });
+  const run = (cmd: string, args: string[]) => execFileSync(cmd, args, { cwd, stdio: "inherit" });
 
   if (!existsSync(join(cwd, ".git"))) run("git", ["init", "-b", "main"]);
   run("pnpm", ["install"]);
@@ -152,9 +151,7 @@ export function initProject(opts: InitOptions): void {
     .split("\0")
     .filter(Boolean);
   run("git", ["add", "--", ...filesToStage]);
-  run("git", ["commit", "-m", "chore: initialize autonomous development environment", "-m", "Task: T-001"], {
-    HARNESS_SKIP_REVIEW: "1",
-  });
+  run("git", ["commit", "-m", "chore: initialize autonomous development environment", "-m", "Task: T-001"]);
 }
 
 if (import.meta.main) {

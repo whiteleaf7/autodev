@@ -34,7 +34,7 @@ AI 自律開発の実行基盤。コミット前のゲート（`autodev check`�
 | `autodev mutate`         | 変異テスト                                                                 |
 | `autodev rules-sync`     | AGENTS.md の共通の規約の区画を、autodev の最新の共通の規約で作り直す（`harness/rules/common.md`が正本） |
 | `autodev stop-hook`      | エージェントの Stop フックの本体                                           |
-| `autodev roborev-doctor` | roborev の状態を調べる                                                     |
+| `autodev roborev-doctor` | roborev の状態を調べる（基盤からは外した。前から roborev を入れているプロジェクト向け） |
 | `autodev screenshot`     | ヘッドレス Chrome で Web の画面を撮る                                      |
 | `autodev windows`        | macOS のウィンドウの一覧を出す（ネイティブのアプリの確認用）               |
 
@@ -44,7 +44,7 @@ autodev を使うプロジェクトには、実行基盤のコードは置かな
 
 - `package.json` のスクリプト: `"check": "autodev check"`、`"land": "autodev land"`、`"worktree:prune": "autodev prune"`、`"harness:eval": "autodev eval"`、`"harness:selftest": "autodev eval --set public"`、`"harness:mutate": "autodev mutate"`
 - `.githooks/`: このリポジトリの `githooks/` の写し（`autodev hook <名前>` を呼ぶだけ。`git config core.hooksPath .githooks` で有効にする）
-- `.claude/settings.json`・`.codex/hooks.json` のフック: `autodev stop-hook`、`autodev roborev-doctor`
+- `.claude/settings.json`・`.codex/hooks.json` のフック: `autodev stop-hook`
 - `.autodev/eval/public/`・`.autodev/eval/heldout/`: 評価のシナリオ（形式は `harness/eval/SPEC.md`）。heldout は最終評価用で、改善する側は中身を読まない。`.autodev/history.jsonl` は、点数の推移
 - `AGENTS.md` の共通の規約の区画: `autodev rules-sync` が作る。区画の外が、プロジェクト固有の記述
 - CI: autodev を取って入れてから、`autodev check` を回す（`.github/workflows/check.yml` で、このリポジトリを `git clone` して、`pnpm install` と `pnpm run link-bin`）

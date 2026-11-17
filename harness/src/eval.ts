@@ -46,7 +46,7 @@ async function judge(
   // 複製の外に置く（複製の中だと、ゲートが追跡していないファイルとして読む）
   const boardFile = `${dir}.board.sqlite`;
   copyFileSync(boardSnapshot, boardFile);
-  // シナリオのコミットで .githooks/post-commit が roborev のレビューを積まないように
+  // 前から roborev のフックを入れているプロジェクトで、シナリオのコミットがレビューを積まないように
   const env = { DEVBOARD_DB: boardFile, HARNESS_SKIP_REVIEW: "1", ...cacheEnv };
   try {
     const problem = applyEdits(dir, scenario.edits);
