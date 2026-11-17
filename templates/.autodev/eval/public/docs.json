@@ -1,0 +1,101 @@
+[
+  {
+    "id": "pub-docs-01",
+    "family": "docs",
+    "kind": "bad",
+    "class": "missing-script",
+    "title": "無いスクリプトをドキュメントに書く",
+    "rule": "AGENTS.md: ドキュメントも同じ変更で直す",
+    "edits": [
+      {
+        "file": "AGENTS.md",
+        "find": "- 型チェック: `pnpm typecheck`",
+        "replace": "- 型チェック: `pnpm typecheck`\n- カバレッジ: `pnpm coverage`"
+      }
+    ]
+  },
+  {
+    "id": "pub-docs-02",
+    "family": "docs",
+    "kind": "bad",
+    "class": "missing-script",
+    "title": "スクリプトの名前だけを変える",
+    "rule": "AGENTS.md: ドキュメントも同じ変更で直す",
+    "edits": [
+      {
+        "file": "package.json",
+        "find": "\"board:open\": \"devboard open\",",
+        "replace": "\"board:launch\": \"devboard open\","
+      }
+    ]
+  },
+  {
+    "id": "pub-docs-03",
+    "family": "docs",
+    "kind": "bad",
+    "class": "missing-path",
+    "title": "無いファイルを指す",
+    "rule": "AGENTS.md: ドキュメントも同じ変更で直す",
+    "edits": [
+      {
+        "file": "AGENTS.md",
+        "find": "- `docs/product.md`: 何を作るか、未決事項",
+        "replace": "- `docs/products.md`: 何を作るか、未決事項"
+      }
+    ]
+  },
+  {
+    "id": "pub-docs-04",
+    "family": "docs",
+    "kind": "bad",
+    "class": "missing-decision",
+    "title": "無い決定記録の番号を書く",
+    "rule": "AGENTS.md: ドキュメントも同じ変更で直す",
+    "edits": [
+      {
+        "file": "docs/product.md",
+        "find": "- コードの品質と規約はゲート（`pnpm check`）と PR・CI で守る",
+        "replace": "- コードの品質と規約はゲート（`pnpm check`）と PR・CI（決定記録 0999）で守る"
+      }
+    ]
+  },
+  {
+    "id": "pub-docs-05",
+    "family": "docs",
+    "kind": "bad",
+    "class": "missing-mcp-tool",
+    "title": "無い MCP ツールの名前を書く",
+    "rule": "AGENTS.md: ドキュメントも同じ変更で直す",
+    "edits": [
+      {
+        "file": "AGENTS.md",
+        "find": "MCP `devboard` の `get_overview`",
+        "replace": "MCP `devboard` の `get_summary`"
+      }
+    ]
+  },
+  {
+    "id": "pub-docs-06",
+    "family": "docs",
+    "kind": "bad",
+    "class": "broken-config",
+    "title": ".mcp.json が無いファイルを指す",
+    "rule": "AGENTS.md: ドキュメントも同じ変更で直す",
+    "edits": [{ "file": ".mcp.json", "find": "\"args\": [\"mcp\"]", "replace": "\"args\": [\"tools/gone/mcp.ts\"]" }]
+  },
+  {
+    "id": "pub-docs-07",
+    "family": "docs",
+    "kind": "good",
+    "class": "good",
+    "title": "正しい参照だけを足す",
+    "rule": "正しい参照は通す",
+    "edits": [
+      {
+        "file": "AGENTS.md",
+        "find": "- テスト: `pnpm test`",
+        "replace": "- テスト: `pnpm test`\n- 画面の確認: `pnpm --filter @repo/verify screenshot`（`docs/verification.md`、MCP の `get_task`）"
+      }
+    ]
+  }
+]

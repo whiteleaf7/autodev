@@ -1,0 +1,11 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "tools/*"
+  - "spikes/*"
+
+# Electron は postinstall でバイナリを落とす。メモリ比較の spikes/electron-compare だけが使う
+allowBuilds:
+  electron: true
+  # デーモンの実行とテストが使う bun。postinstall で、その OS のバイナリを bin に置く
+  bun: true

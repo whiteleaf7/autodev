@@ -1,0 +1,62 @@
+[
+  {
+    "id": "pub-defects-01",
+    "family": "defects",
+    "kind": "bad",
+    "class": "logic",
+    "title": "優先度の並びを逆にする",
+    "rule": "着手する順は、優先度の高いものが先",
+    "edits": [
+      {
+        "file": "tools/devboard/src/describe.ts",
+        "find": ".sort((x, y) => rank(x.priority) - rank(y.priority) || x.id.localeCompare(y.id));",
+        "replace": ".sort((x, y) => rank(y.priority) - rank(x.priority) || x.id.localeCompare(y.id));"
+      }
+    ]
+  },
+  {
+    "id": "pub-defects-02",
+    "family": "defects",
+    "kind": "bad",
+    "class": "logic",
+    "title": "メモを書いた人を記録しなくなる",
+    "rule": "ユーザーが書いたメモには by: user が付く",
+    "edits": [
+      {
+        "file": "tools/devboard/src/store.ts",
+        "find": "const added = note?.trim() ? { at, text: note.trim(), by: \"ai\" as const } : null;",
+        "replace": "const added = note?.trim() ? { at, text: \"\", by: \"ai\" as const } : null;"
+      }
+    ]
+  },
+  {
+    "id": "pub-defects-03",
+    "family": "defects",
+    "kind": "bad",
+    "class": "type",
+    "title": "数値を返す関数が文字列を返す",
+    "rule": "型チェックを通す",
+    "edits": [
+      {
+        "file": "tools/devboard/src/store.ts",
+        "find": "const number = Number(db.prepare(\"SELECT coalesce(max(number), 0) + 1 AS next FROM lessons\").get()?.next);",
+        "replace": "const number: number = String(db.prepare(\"SELECT coalesce(max(number), 0) + 1 AS next FROM lessons\").get()?.next);"
+      }
+    ]
+  },
+  {
+    "id": "pub-defects-04",
+    "family": "defects",
+    "kind": "good",
+    "class": "good",
+    "title": "局所変数の名前を変える",
+    "rule": "振る舞いを変えない変更は通す",
+    "edits": [
+      {
+        "file": "tools/devboard/src/store.ts",
+        "find": "const padded = (prefix: string, n: number) => `${prefix}-${String(n).padStart(3, \"0\")}`;",
+        "replace": "const padded = (prefix: string, num: number) => `${prefix}-${String(num).padStart(3, \"0\")}`;"
+      }
+    ]
+  }
+]

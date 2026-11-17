@@ -1,0 +1,35 @@
+{
+  "name": "{{name}}",
+  "displayName": "{{title}}",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.0.8",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "board": "devboard start",
+    "board:open": "devboard open",
+    "board:tailscale": "devboard tailscale",
+    "board:import": "devboard import-history",
+    "board:show": "devboard show",
+    "board:apply": "devboard apply",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "check": "autodev check",
+    "format": "biome format --write",
+    "lint": "oxlint --no-error-on-unmatched-pattern",
+    "recall": "devboard recall",
+    "land": "autodev land",
+    "worktree:prune": "autodev prune",
+    "harness:eval": "autodev eval",
+    "harness:selftest": "autodev eval --set public",
+    "harness:mutate": "autodev mutate",
+    "prepare": "git config core.hooksPath .githooks && git config blame.ignoreRevsFile .git-blame-ignore-revs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.7",
+    "oxlint": "1.93.0",
+    "oxlint-tsgolint": "7.0.2007"
+  }
+}

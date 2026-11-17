@@ -2,6 +2,7 @@
 // どのスクリプトも、コマンドを打った場所（cwd）のプロジェクトを対象にする
 
 const COMMANDS = {
+  init: { script: "harness/src/init.ts", summary: "新しいプロジェクトに、autodev を使う設定と文書の雛形を書いて、初期化する" },
   check: { script: "harness/src/check.ts", summary: "ゲート（評価の緩め・規約・記録・ドキュメントの検査のあと、lint・型チェック・テスト）。--staged で index を検査する" },
   hook: { script: "harness/src/hook.ts", summary: "git のフックの本体（pre-commit・commit-msg・pre-push）。フックの設定から呼ぶ" },
   land: { script: "harness/src/land.ts", summary: "作業ブランチを、rebase → ゲート → PR → CI → マージで main に取り込む" },

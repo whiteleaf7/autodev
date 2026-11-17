@@ -1,0 +1,24 @@
+node_modules/
+.dev/
+*.tmp
+.DS_Store
+
+# Swift / Xcode
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+dist/
+
+# グローバルの gitignore で除外しているエージェント設定ディレクトリを、このリポジトリでは管理する
+!.claude/
+!.codex/
+.claude/settings.local.json
+.codex/config.local.toml
+
+# 並行作業用の worktree（エージェント不問の .worktrees/ と、Claude Code の .claude/worktrees/）
+.worktrees/
+.claude/worktrees/
+
+# bun build --compile の一時ファイル
+*.bun-build

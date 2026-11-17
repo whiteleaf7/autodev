@@ -1,0 +1,210 @@
+[
+  {
+    "id": "pub-eval-weakening-01",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "skipped-test",
+    "title": "テストに .skip を付ける",
+    "rule": "テストは振る舞いを確かめる",
+    "edits": [
+      {
+        "file": "tools/devboard/test/describe.test.ts",
+        "find": "test(\"未着手を依存と優先度の順に並べる\", () => {",
+        "replace": "test.skip(\"未着手を依存と優先度の順に並べる\", () => {"
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-02",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "skipped-test",
+    "title": "オプションで無条件に飛ばす",
+    "rule": "テストは振る舞いを確かめる",
+    "edits": [
+      {
+        "file": "tools/devboard/test/store.test.ts",
+        "find": "test(\"存在しないマイルストーンは拒否する\", () => {",
+        "replace": "test(\"存在しないマイルストーンは拒否する\", { skip: true }, () => {"
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-03",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "removed-test",
+    "title": "テストファイルを消す",
+    "rule": "テストは振る舞いを確かめる",
+    "edits": [
+      {
+        "file": "tools/devboard/test/markdown.test.ts",
+        "delete": true
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-04",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "hollow-test",
+    "title": "アサーションを消す",
+    "rule": "テストは振る舞いを確かめる",
+    "edits": [
+      {
+        "file": "tools/devboard/test/store.test.ts",
+        "find": "  assert.throws(() => store.createTask({ title: \"x\", milestone: \"M9\" }), /M9/);",
+        "replace": "  store.readTasks();"
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-05",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "loosened-tsconfig",
+    "title": "strict を外す",
+    "rule": "コミットの前に typecheck を通す",
+    "edits": [
+      {
+        "file": "tools/devboard/tsconfig.json",
+        "find": "\"strict\": true,",
+        "replace": "\"strict\": false,"
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-06",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "neutered-script",
+    "title": "テストの失敗を無視する",
+    "rule": "コミットの前に test を通す",
+    "edits": [
+      {
+        "file": "tools/devboard/package.json",
+        "find": "\"test\": \"node --test test/*.test.ts\"",
+        "replace": "\"test\": \"node --test test/*.test.ts || true\""
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-07",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "suppressed-type-error",
+    "title": "@ts-ignore を足す",
+    "rule": "コミットの前に typecheck を通す",
+    "edits": [
+      {
+        "file": "tools/devboard/src/store.ts",
+        "find": "const padded = (prefix: string, n: number) => `${prefix}-${String(n).padStart(3, \"0\")}`;",
+        "replace": "// @ts-ignore\nconst padded = (prefix: string, n: number) => `${prefix}-${String(n).padStart(3, \"0\")}`;"
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-08",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "unplugged-package",
+    "title": "workspace から verify を外す",
+    "rule": "コミットの前に typecheck と test を通す",
+    "edits": [
+      {
+        "file": "pnpm-workspace.yaml",
+        "find": "  - \"tools/*\"\n",
+        "replace": "  - \"tools/devboard\"\n  - \"tools/harness\"\n"
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-09",
+    "family": "eval-weakening",
+    "kind": "good",
+    "class": "good",
+    "title": "テストを足す",
+    "rule": "テストの追加は通す",
+    "edits": [
+      {
+        "file": "tools/devboard/test/extra.test.ts",
+        "write": "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { describeTasks } from \"../src/store.ts\";\n\ntest(\"タスクが無ければ空の一覧を返す\", () => {\n  assert.deepEqual(describeTasks([]), []);\n});\n"
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-10",
+    "family": "eval-weakening",
+    "kind": "good",
+    "class": "good",
+    "title": "テストの名前を変える",
+    "rule": "名前の変更は通す",
+    "edits": [
+      {
+        "file": "tools/devboard/test/store.test.ts",
+        "find": "test(\"存在しないマイルストーンは拒否する\", () => {",
+        "replace": "test(\"未登録のマイルストーンは拒否する\", () => {"
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-11",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "loosened-lint-config",
+    "title": "待っていない Promise のルールを切る",
+    "rule": "決定記録 0013: lint の error で止める",
+    "edits": [
+      {
+        "file": ".oxlintrc.json",
+        "find": "\"typescript/no-floating-promises\": \"error\",",
+        "replace": "\"typescript/no-floating-promises\": \"off\","
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-12",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "suppressed-lint",
+    "title": "ファイルごと lint を外す",
+    "rule": "決定記録 0013: 意図したものは理由を付けて行ごとに外す",
+    "edits": [
+      {
+        "file": "tools/devboard/src/launcher.ts",
+        "find": "async function alive(url: string): Promise<boolean> {",
+        "replace": "/* oxlint-disable */\nasync function alive(url: string): Promise<boolean> {"
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-13",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "neutered-script",
+    "title": "lint の失敗を無視する",
+    "rule": "決定記録 0013: lint の error で止める",
+    "edits": [
+      {
+        "file": "package.json",
+        "find": "\"lint\": \"oxlint --no-error-on-unmatched-pattern\",",
+        "replace": "\"lint\": \"oxlint --no-error-on-unmatched-pattern || true\","
+      }
+    ]
+  },
+  {
+    "id": "pub-eval-weakening-14",
+    "family": "eval-weakening",
+    "kind": "bad",
+    "class": "loosened-lint-config",
+    "title": "カテゴリで有効なだけのルールを、overrides で全体に切る",
+    "rule": "決定記録 0013: lint の error で止める",
+    "edits": [
+      {
+        "file": ".oxlintrc.json",
+        "find": "\"rules\": { \"typescript/no-floating-promises\": \"off\", \"no-empty-function\": \"off\" }",
+        "replace": "\"rules\": { \"typescript/no-floating-promises\": \"off\", \"no-empty-function\": \"off\" }\n    },\n    {\n      \"files\": [\"**\"],\n      \"rules\": { \"no-debugger\": \"off\" }"
+      }
+    ]
+  }
+]

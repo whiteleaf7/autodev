@@ -1,0 +1,56 @@
+[
+  {
+    "id": "pub-recall-01",
+    "family": "recall",
+    "kind": "query",
+    "class": "decision",
+    "title": "ボードの保存先の決定",
+    "query": "ボードの保存データを git の外の SQLite にしたのはなぜ",
+    "expect": ["D-0001"],
+    "edits": [
+      {
+        "file": "docs/decisions/0001-board-in-sqlite.md",
+        "write": "# 0001. ボードの保存先を SQLite にする\n\n- 状態: 採用\n- 日付: 2026-11-15\n\n## 背景\n\nボードの保存データを git の外の SQLite にする理由を検討。\n\n## 決定\n\nボードの保存データを git の外の SQLite に保存する。\n\n## 影響\n\ngit 履歴を汚さずにボード操作を永続化できる。\n"
+      }
+    ]
+  },
+  {
+    "id": "pub-recall-02",
+    "family": "recall",
+    "kind": "query",
+    "class": "decision",
+    "title": "画面の確認方法の決定",
+    "query": "AI が画面を確かめるのに、なぜヘッドレスの Chrome を選んだのか",
+    "expect": ["D-0002"],
+    "edits": [
+      {
+        "file": "docs/decisions/0002-verify-ui-with-headless-chrome.md",
+        "write": "# 0002. ヘッドレス Chrome による画面確認\n\n- 状態: 採用\n- 日付: 2026-11-15\n\n## 背景\n\nAI が画面を確かめるのに、なぜヘッドレスの Chrome を選んだのかの背景。\n\n## 決定\n\nヘッドレス Chrome を DevTools Protocol で動かしてスクリーンショットを撮影する。\n\n## 影響\n\nAI が自律して画面の変化を確認できる。\n"
+      }
+    ]
+  },
+  {
+    "id": "pub-recall-03",
+    "family": "recall",
+    "kind": "query",
+    "class": "decision",
+    "title": "lint と CI の方針",
+    "query": "リントやフォーマッタ、CI をどうするかはどう決めた？",
+    "expect": ["D-0003"],
+    "edits": [
+      {
+        "file": "docs/decisions/0003-lint-format-ci.md",
+        "write": "# 0003. リントやフォーマッタ、CI の方針\n\n- 状態: 採用\n- 日付: 2026-11-15\n\n## 背景\n\nリントやフォーマッタ、CI をどうするかはどう決めたかの検討。\n\n## 決定\n\noxlint と Biome、および GitHub Actions を採用する。\n\n## 影響\n\n高速な検査と一貫したコードフォーマットを実現する。\n"
+      }
+    ]
+  },
+  {
+    "id": "pub-recall-04",
+    "family": "recall",
+    "kind": "query",
+    "class": "task",
+    "title": "開発基盤とダッシュボード環境の整備",
+    "query": "開発基盤とダッシュボード環境を整備したタスクはどれか",
+    "expect": ["T-001"]
+  }
+]

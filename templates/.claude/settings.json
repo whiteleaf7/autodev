@@ -1,0 +1,39 @@
+{
+  "enabledMcpjsonServers": ["devboard"],
+  "permissions": {
+    "allow": [
+      "mcp__devboard__get_overview",
+      "mcp__devboard__list_tasks",
+      "mcp__devboard__get_task",
+      "mcp__devboard__list_decisions",
+      "mcp__devboard__get_decision",
+      "mcp__devboard__open_dashboard",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm test)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "autodev roborev-doctor",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "autodev stop-hook",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

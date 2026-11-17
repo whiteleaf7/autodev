@@ -1,0 +1,6 @@
+# Codex CLI 用のプロジェクト設定。開発ボードの MCP サーバ（devboard）を登録する。
+# devboard は全プロジェクトで共有するコマンド（~/github/devboard）。
+
+[mcp_servers.devboard]
+command = "devboard"
+args = ["mcp"]

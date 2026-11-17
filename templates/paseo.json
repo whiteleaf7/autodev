@@ -1,0 +1,7 @@
+{
+  "metadataGeneration": {
+    "title": {
+      "instructions": "Write the title in Japanese, even if the user prompt is in English.\nAn actionable task label: requested operation + concrete target + strongest distinguishing anchor (max 80 characters).\nKeep explicit identifiers such as PR or issue numbers, file paths, packages, components, commands, and quoted names as they are when they distinguish the task.\nKeep it short, but never drop a part needed to understand or distinguish the task.\nExample: \"PR #2638 の Playwright テストをリファクタ\"."
+    }
+  }
+}

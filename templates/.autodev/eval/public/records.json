@@ -1,0 +1,390 @@
+[
+  {
+    "id": "pub-records-01",
+    "family": "records",
+    "kind": "bad",
+    "class": "invalid-task",
+    "title": "使えない状態でタスクを作る",
+    "rule": "tools/devboard/src/schema.ts の status",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "状態が変",
+          "status": "wip"
+        }
+      }
+    ]
+  },
+  {
+    "id": "pub-records-02",
+    "family": "records",
+    "kind": "bad",
+    "class": "broken-link",
+    "title": "存在しないタスクに依存する",
+    "rule": "tools/devboard/src/rules.ts と AGENTS.md の「作業するとき」",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "依存先が無い",
+          "dependsOn": [
+            "T-9999"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "pub-records-03",
+    "family": "records",
+    "kind": "bad",
+    "class": "unexplained-state",
+    "title": "メモ無しで done にする",
+    "rule": "tools/devboard/src/rules.ts と AGENTS.md の「作業するとき」",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "すぐ終わる"
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "done"
+        }
+      }
+    ]
+  },
+  {
+    "id": "pub-records-04",
+    "family": "records",
+    "kind": "bad",
+    "class": "forbidden-review",
+    "title": "AI のタスクを review にする",
+    "rule": "AGENTS.md: ユーザーに確認してもらうための review は使わない",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "確認してほしい"
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "review",
+          "note": "見てほしい"
+        }
+      }
+    ]
+  },
+  {
+    "id": "pub-records-05",
+    "family": "records",
+    "kind": "bad",
+    "class": "parent-closed-early",
+    "title": "子が残っているのに親を閉じる",
+    "rule": "AGENTS.md: 子タスクがすべて終わったら、親タスクも閉じる",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "親"
+        }
+      },
+      {
+        "op": "create_task",
+        "args": {
+          "title": "子",
+          "parent": "$0"
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "done",
+          "note": "終えた"
+        }
+      }
+    ]
+  },
+  {
+    "id": "pub-records-06",
+    "family": "records",
+    "kind": "bad",
+    "class": "broken-link",
+    "title": "親子関係を循環させる",
+    "rule": "tools/devboard/src/rules.ts と AGENTS.md の「作業するとき」",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "上"
+        }
+      },
+      {
+        "op": "create_task",
+        "args": {
+          "title": "下",
+          "parent": "$0"
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "parent": "$1"
+        }
+      }
+    ]
+  },
+  {
+    "id": "pub-records-07",
+    "family": "records",
+    "kind": "bad",
+    "class": "invalid-decision",
+    "title": "状態の行が無い決定記録",
+    "rule": "store.ts: 決定記録は 状態・日付・背景・決定・影響 を持つ",
+    "edits": [
+      {
+        "file": "docs/decisions/0801-sample.md",
+        "write": "# 0801. 評価用の決定\n\n- 日付: 2026-11-12\n\n## 背景\n\n背景。\n\n## 決定\n\n決定。\n\n## 影響\n\n影響。\n"
+      }
+    ]
+  },
+  {
+    "id": "pub-records-08",
+    "family": "records",
+    "kind": "good",
+    "class": "good",
+    "title": "タスクを作り、メモを付けて閉じる",
+    "rule": "tools/devboard/src/rules.ts と AGENTS.md の「作業するとき」",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "小さな修正",
+          "labels": [
+            "fix"
+          ]
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "doing",
+          "note": "着手"
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "done",
+          "note": "テストで確かめた"
+        }
+      }
+    ]
+  },
+  {
+    "id": "pub-records-09",
+    "family": "records",
+    "kind": "good",
+    "class": "good",
+    "title": "正しい形式の新しい決定記録",
+    "rule": "正しい記録は通す",
+    "edits": [
+      {
+        "file": "docs/decisions/0810-sample.md",
+        "write": "# 0810. 評価用の決定\n\n- 状態: 提案\n- 日付: 2026-11-12\n\n## 背景\n\n背景。\n\n## 決定\n\n決定。\n\n## 影響\n\n影響。\n"
+      }
+    ]
+  },
+  {
+    "id": "pub-records-10",
+    "family": "records",
+    "kind": "good",
+    "class": "good",
+    "title": "子をすべて終えてから親を閉じる",
+    "rule": "AGENTS.md: 子タスクがすべて終わったら、親タスクも閉じる",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "親"
+        }
+      },
+      {
+        "op": "create_task",
+        "args": {
+          "title": "子",
+          "parent": "$0"
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$1",
+          "status": "done",
+          "note": "終えた"
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "done",
+          "note": "子が終わった"
+        }
+      }
+    ]
+  },
+  {
+    "id": "pub-records-11",
+    "family": "records",
+    "kind": "bad",
+    "class": "unverified-done",
+    "title": "コードを変えたタスクを、テストが通ったことだけで閉じる",
+    "rule": "AGENTS.md の「作業するとき」と docs/verification.md の「done にするときに残すもの」",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "コードを変えたタスクを、テストが通ったことだけで閉じる",
+          "paths": [
+            "tools/devboard/src/",
+            "tools/devboard/test/"
+          ]
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "doing",
+          "note": "着手"
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "done",
+          "note": "実装した。pnpm test と pnpm typecheck が通った"
+        }
+      }
+    ]
+  },
+  {
+    "id": "pub-records-12",
+    "family": "records",
+    "kind": "bad",
+    "class": "unverified-done",
+    "title": "画面を変えたタスクを、テストのコマンドを動かした証拠として閉じる",
+    "rule": "AGENTS.md の「作業するとき」と docs/verification.md の「done にするときに残すもの」",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "画面を変えたタスクを、テストのコマンドを動かした証拠として閉じる",
+          "paths": [
+            "apps/desktop/"
+          ]
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "doing",
+          "note": "着手"
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "done",
+          "note": "動かした: `pnpm --filter @repo/desktop test` → 12 件通った"
+        }
+      }
+    ]
+  },
+  {
+    "id": "pub-records-13",
+    "family": "records",
+    "kind": "good",
+    "class": "good",
+    "title": "コードを変えたタスクを、動かした結果を残して閉じる",
+    "rule": "AGENTS.md の「作業するとき」と docs/verification.md の「done にするときに残すもの」",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "コードを変えたタスクを、動かした結果を残して閉じる",
+          "paths": [
+            "tools/devboard/src/"
+          ]
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "doing",
+          "note": "着手"
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "done",
+          "note": "動かした: `DEVBOARD_DB=.dev/board-copy.sqlite pnpm board:apply '[{\"op\":\"create_task\",\"args\":{\"title\":\"x\",\"status\":\"wip\"}}]'` → 操作 0 で断られ、写しは変わらなかった"
+        }
+      }
+    ]
+  },
+  {
+    "id": "pub-records-14",
+    "family": "records",
+    "kind": "good",
+    "class": "good",
+    "title": "docs だけのタスクを、読み直したメモで閉じる",
+    "rule": "AGENTS.md の「作業するとき」と docs/verification.md の「done にするときに残すもの」",
+    "board": [
+      {
+        "op": "create_task",
+        "args": {
+          "title": "docs だけのタスクを、読み直したメモで閉じる",
+          "paths": [
+            "docs/research/",
+            "README.md"
+          ]
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "doing",
+          "note": "着手"
+        }
+      },
+      {
+        "op": "update_task",
+        "args": {
+          "id": "$0",
+          "status": "done",
+          "note": "読み直して、リンクが切れていないことを確かめた"
+        }
+      }
+    ]
+  }
+]

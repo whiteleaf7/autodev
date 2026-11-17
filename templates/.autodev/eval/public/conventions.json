@@ -1,0 +1,122 @@
+[
+  {
+    "id": "pub-conventions-01",
+    "family": "conventions",
+    "kind": "bad",
+    "class": "explicit-any",
+    "title": "引数の型を any にする",
+    "rule": "AGENTS.md: any は使わず",
+    "edits": [
+      {
+        "file": "tools/devboard/src/decisions.ts",
+        "find": "function writeAtomic(file: string, content: string): void {",
+        "replace": "function writeAtomic(file: string, content: any): void {"
+      }
+    ]
+  },
+  {
+    "id": "pub-conventions-02",
+    "family": "conventions",
+    "kind": "bad",
+    "class": "explicit-any",
+    "title": "as any で型を外す",
+    "rule": "AGENTS.md: any は使わず",
+    "edits": [
+      {
+        "file": "tools/devboard/src/store.ts",
+        "find": "Project.parse(JSON.parse(String(row.data)))",
+        "replace": "Project.parse(JSON.parse(String(row.data)) as any)"
+      }
+    ]
+  },
+  {
+    "id": "pub-conventions-03",
+    "family": "conventions",
+    "kind": "bad",
+    "class": "non-loopback-listen",
+    "title": "待ち受けるホストを省く",
+    "rule": "AGENTS.md: ローカルで待ち受けるサーバは 127.0.0.1 のみ",
+    "edits": [
+      {
+        "file": "tools/devboard/src/server.ts",
+        "find": "server.listen(port, \"127.0.0.1\", () => {",
+        "replace": "server.listen(port, () => {"
+      }
+    ]
+  },
+  {
+    "id": "pub-conventions-04",
+    "family": "conventions",
+    "kind": "bad",
+    "class": "empty-catch",
+    "title": "理由を書かずに catch を空にする",
+    "rule": "AGENTS.md: エラーは握りつぶさず",
+    "edits": [
+      {
+        "file": "tools/devboard/src/server.ts",
+        "find": "    } catch {\n      // ディレクトリがまだ無い場合は監視しない\n    }",
+        "replace": "    } catch {}"
+      }
+    ]
+  },
+  {
+    "id": "pub-conventions-05",
+    "family": "conventions",
+    "kind": "bad",
+    "class": "package-manager",
+    "title": "スクリプトで npx を使う",
+    "rule": "AGENTS.md: npm / npx は使わない",
+    "edits": [
+      {
+        "file": "tools/devboard/package.json",
+        "find": "\"start\": \"node src/server.ts\",",
+        "replace": "\"start\": \"node src/server.ts\",\n    \"lint\": \"npx eslint .\","
+      }
+    ]
+  },
+  {
+    "id": "pub-conventions-06",
+    "family": "conventions",
+    "kind": "bad",
+    "class": "circular-import",
+    "title": "store.ts から server.ts を import して循環させる",
+    "rule": "AGENTS.md: モジュールの依存を循環させない",
+    "edits": [
+      {
+        "file": "tools/devboard/src/store.ts",
+        "find": "import { repoRoot } from \"./repo-root.ts\";\n",
+        "replace": "import { repoRoot } from \"./repo-root.ts\";\nimport type { startServer } from \"./server.ts\";\n\nexport type Server = ReturnType<typeof startServer>;\n"
+      }
+    ]
+  },
+  {
+    "id": "pub-conventions-07",
+    "family": "conventions",
+    "kind": "good",
+    "class": "good",
+    "title": "エラーに文脈を足して投げ直す",
+    "rule": "AGENTS.md: エラーは利用者が直せる言葉で返す",
+    "edits": [
+      {
+        "file": "tools/devboard/src/store.ts",
+        "find": "  return row\n    ? Project.parse(JSON.parse(String(row.data)))\n    : { name: basename(repoRoot()), summary: \"\", milestones: [] };",
+        "replace": "  try {\n    return row\n      ? Project.parse(JSON.parse(String(row.data)))\n      : { name: basename(repoRoot()), summary: \"\", milestones: [] };\n  } catch (e) {\n    throw new Error(`ボードのプロジェクトを読めない: ${e instanceof Error ? e.message : String(e)}`);\n  }"
+      }
+    ]
+  },
+  {
+    "id": "pub-conventions-08",
+    "family": "conventions",
+    "kind": "bad",
+    "class": "floating-promise",
+    "title": "書き込みの処理を待たずに捨てる",
+    "rule": "AGENTS.md: エラーは握りつぶさず",
+    "edits": [
+      {
+        "file": "tools/devboard/src/mcp.ts",
+        "find": "await server.connect(new StdioServerTransport());",
+        "replace": "server.connect(new StdioServerTransport());"
+      }
+    ]
+  }
+]

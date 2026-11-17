@@ -1,0 +1,47 @@
+# ローカルのゲートと同じ pnpm check を回す。CI のための検査は作らない
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # spikes/electron-compare だけが使うバイナリで、ゲートでは使わない
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      # ゲートは、MCP ツールの名前と決定記録の形式を devboard に聞く（写しを持たない）ので、公開リポジトリから取って入れる。
+      # 作業ツリーの外（RUNNER_TEMP）に置くのは、ゲートが取り込んだファイルまで検査しないため
+      - name: devboard を入れる
+        run: |
+          git clone --depth 1 https://github.com/whiteleaf7/devboard.git "$RUNNER_TEMP/devboard"
+          cd "$RUNNER_TEMP/devboard"
+          pnpm install --frozen-lockfile
+          pnpm run link-bin
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # ゲート・フック・取り込み・評価は autodev コマンドが持つので、同じ手順で取って入れる
+      - name: autodev を入れる
+        run: |
+          git clone --depth 1 https://github.com/whiteleaf7/autodev.git "$RUNNER_TEMP/autodev"
+          cd "$RUNNER_TEMP/autodev"
+          pnpm install --frozen-lockfile
+          pnpm run link-bin
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check

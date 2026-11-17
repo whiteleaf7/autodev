@@ -1,0 +1,192 @@
+[
+  {
+    "id": "pub-commits-01",
+    "family": "commits",
+    "kind": "bad",
+    "class": "bad-message",
+    "title": "接頭辞の無いメッセージ",
+    "rule": "AGENTS.md: メッセージは Conventional Commits",
+    "edits": [
+      {
+        "file": "docs/research/sample-note.md",
+        "write": "# 評価用のメモ\n\n本文。\n"
+      }
+    ],
+    "commit": {
+      "message": "update docs",
+      "stage": [
+        "docs/research/sample-note.md"
+      ]
+    }
+  },
+  {
+    "id": "pub-commits-02",
+    "family": "commits",
+    "kind": "bad",
+    "class": "non-english-message",
+    "title": "件名が日本語",
+    "rule": "AGENTS.md: 簡潔な英語にする",
+    "edits": [
+      {
+        "file": "docs/research/sample-note.md",
+        "write": "# 評価用のメモ\n\n本文。\n"
+      }
+    ],
+    "commit": {
+      "message": "docs: 調査メモを追加",
+      "stage": [
+        "docs/research/sample-note.md"
+      ]
+    }
+  },
+  {
+    "id": "pub-commits-04",
+    "family": "commits",
+    "kind": "bad",
+    "class": "unknown-task-trailer",
+    "title": "存在しないタスクを Task: に書く",
+    "rule": "AGENTS.md: ボードのタスクに対応するコミットは、本文に Task: T-NNN を入れる",
+    "edits": [
+      {
+        "file": "docs/research/sample-note.md",
+        "write": "# 評価用のメモ\n\n本文。\n"
+      }
+    ],
+    "commit": {
+      "message": "docs: add sample research note\n\nTask: T-777",
+      "stage": [
+        "docs/research/sample-note.md"
+      ]
+    }
+  },
+  {
+    "id": "pub-commits-05",
+    "family": "commits",
+    "kind": "bad",
+    "class": "failing-gate",
+    "title": "型エラーのままコミットする",
+    "rule": "AGENTS.md: コミットの前に typecheck と test を通す",
+    "edits": [
+      {
+        "file": "tools/devboard/src/store.ts",
+        "find": "const padded = (prefix: string, n: number) => `${prefix}-${String(n).padStart(3, \"0\")}`;",
+        "replace": "const padded = (prefix: string, n: number): number => `${prefix}-${String(n).padStart(3, \"0\")}`;"
+      }
+    ],
+    "commit": {
+      "message": "fix: change task numbering",
+      "stage": [
+        "tools/devboard/src/store.ts"
+      ]
+    }
+  },
+  {
+    "id": "pub-commits-06",
+    "family": "commits",
+    "kind": "bad",
+    "class": "untracked-area",
+    "title": ".dev/ のファイルを強制的に追加する",
+    "rule": "AGENTS.md: .dev/ はローカルの一時ファイル（git 管理外）",
+    "edits": [
+      {
+        "file": ".dev/notes.txt",
+        "write": "一時的なメモ\n"
+      }
+    ],
+    "commit": {
+      "message": "chore: add notes",
+      "stage": [
+        ".dev/notes.txt"
+      ]
+    }
+  },
+  {
+    "id": "pub-commits-07",
+    "family": "commits",
+    "kind": "good",
+    "class": "good",
+    "title": "存在するタスクを Task: に書く",
+    "rule": "規則どおりのコミットは通す",
+    "edits": [
+      {
+        "file": "docs/research/sample-note.md",
+        "write": "# 見本のメモ\n\nlint の方針を調べる。\n"
+      }
+    ],
+    "commit": {
+      "message": "docs: add a note on the lint policy\n\nTask: T-001",
+      "stage": [
+        "docs/research/sample-note.md"
+      ]
+    }
+  },
+  {
+    "id": "pub-commits-08",
+    "family": "commits",
+    "kind": "good",
+    "class": "good",
+    "title": "ドキュメントだけのコミット",
+    "rule": "規則どおりのコミットは通す",
+    "edits": [
+      {
+        "file": "docs/research/sample-note.md",
+        "write": "# 評価用のメモ\n\n本文。\n"
+      }
+    ],
+    "commit": {
+      "message": "docs: add sample research note",
+      "stage": [
+        "docs/research/sample-note.md"
+      ]
+    }
+  },
+  {
+    "id": "pub-commits-09",
+    "family": "commits",
+    "kind": "good",
+    "class": "good",
+    "title": "ステージしていない壊れたファイルがあっても、ステージした中身が正しければ通す",
+    "rule": "ゲートはコミットされる中身（index）に当てる",
+    "edits": [
+      {
+        "file": "tools/devboard/src/store.ts",
+        "find": "const padded = (prefix: string, n: number) => `${prefix}-${String(n).padStart(3, \"0\")}`;",
+        "replace": "const padded = (prefix: string, n: number): number => `${prefix}-${String(n).padStart(3, \"0\")}`;"
+      },
+      {
+        "file": "docs/research/sample-note.md",
+        "write": "# 評価用のメモ\n\n本文。\n"
+      }
+    ],
+    "commit": {
+      "message": "docs: add sample research note",
+      "stage": [
+        "docs/research/sample-note.md"
+      ]
+    }
+  },
+  {
+    "id": "pub-commits-10",
+    "family": "commits",
+    "kind": "bad",
+    "class": "unstaged-dependency",
+    "title": "ステージしていないファイルに頼るコードをコミットする",
+    "rule": "ゲートはコミットされる中身（index）に当てる",
+    "edits": [
+      {
+        "file": "tools/devboard/src/sample-label.ts",
+        "write": "import { shout } from \"./sample-shout.ts\";\n\nexport const sampleLabel = (name: string) => shout(name);\n"
+      },
+      {
+        "file": "tools/devboard/src/sample-shout.ts",
+        "write": "export const shout = (text: string) => text.toUpperCase();\n"
+      }
+    ],
+    "commit": {
+      "message": "feat: add sample label",
+      "stage": [
+        "tools/devboard/src/sample-label.ts"
+      ]
+    }
+  }
+]

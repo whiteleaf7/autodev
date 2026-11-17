@@ -1,0 +1,6 @@
+{
+  "hiddenPaths": [".autodev/eval/heldout/"],
+  "rules": {
+    "verificationHint": "（例: 動かした: `autodev screenshot <URL> .dev/verify/board.png --wait-for <セレクタ>` → 一覧に 3 件出た）。手段は docs/verification.md の「使える手段」: 画面は screenshot、ネイティブのウィンドウは windows、CLI やサーバは起動して出力を見る、ボードの操作は DEVBOARD_DB の写しに devboard apply"
+  }
+}
