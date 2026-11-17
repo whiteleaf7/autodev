@@ -41,6 +41,7 @@ export function extractFixture(home: string, commit: string, dest: string): void
   } catch (e) {
     throw new Error(
       `評価の見本の devboard のコミット ${commit} を ${home} から取り出せない。浅い clone なら git fetch --unshallow で履歴を取る（${e instanceof Error ? e.message.split("\n")[0] : String(e)}）`,
+      { cause: e },
     );
   }
   mkdirSync(dest, { recursive: true });

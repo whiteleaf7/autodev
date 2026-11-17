@@ -17,7 +17,7 @@ const MAX_ENTRIES = 50;
 export function gateKey(files: FileHash[], environment: string[]): string {
   const hash = createHash("sha256");
   for (const item of environment) hash.update(`env:${item}\0`);
-  for (const file of [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))) {
+  for (const file of [...files].toSorted((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))) {
     hash.update(`${file.path}\0${file.hash}\0`);
   }
   return hash.digest("hex");

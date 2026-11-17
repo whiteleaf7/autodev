@@ -47,7 +47,7 @@ export function loadScenarios(dir: string): Scenario[] {
   if (!existsSync(dir)) return [];
   const scenarios = readdirSync(dir)
     .filter((name) => name.endsWith(".json"))
-    .sort()
+    .toSorted()
     .flatMap((name) => {
       const parsed = z.array(Scenario).safeParse(JSON.parse(readFileSync(join(dir, name), "utf8")));
       if (!parsed.success) throw new Error(`${join(dir, name)}: ${z.prettifyError(parsed.error)}`);

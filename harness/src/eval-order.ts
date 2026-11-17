@@ -11,7 +11,7 @@ export function sameWorkKey(s: Work): string | null {
   if (s.kind === "query" || s.board.length) return null;
   if (s.commit) {
     // コミットされる中身（index）で検査されるので、ステージしないファイルの編集は、結果に関わらない
-    const staged = [...s.commit.stage].sort();
+    const staged = [...s.commit.stage].toSorted();
     return `commit:${JSON.stringify(staged.map((file) => [file, s.edits.filter((e) => e.file === file)]))}`;
   }
   return `gate:${JSON.stringify(s.edits)}`;

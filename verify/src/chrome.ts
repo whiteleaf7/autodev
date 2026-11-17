@@ -8,9 +8,7 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseDevToolsActivePort } from "./options.ts";
 
-const chromePath =
-  process.env.VERIFY_CHROME ??
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const chromePath = process.env.VERIFY_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 type CdpEvent = { method: string; params: Record<string, unknown>; sessionId?: string };
 
@@ -222,7 +220,9 @@ export async function withChrome<T>(timeoutMs: number, use: (browser: Browser) =
       const exited = once(chrome, "exit");
       chrome.kill();
       // SIGTERM を無視して居座る Chrome を、いつまでも待たない
-      const forceKill = setTimeout(() => chrome.kill("SIGKILL"), KILL_GRACE_MS);
+      const forceKill = setTimeout(() => {
+        chrome.kill("SIGKILL");
+      }, KILL_GRACE_MS);
       await exited;
       clearTimeout(forceKill);
     }

@@ -19,7 +19,7 @@ function git(cwd: string, ...args: string[]): string {
 }
 
 function branches(repo: string): string[] {
-  return git(repo, "branch", "--format=%(refname:short)").split("\n").sort();
+  return git(repo, "branch", "--format=%(refname:short)").split("\n").toSorted();
 }
 
 test("main の worktree が別のブランチを開いていても、main か origin/main に取り込まれた worktree を片付ける", (t) => {

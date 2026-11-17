@@ -30,5 +30,5 @@ export function testFilesOf(files: string[], packageDir: string): string[] {
   return files
     .filter((f) => f.startsWith(`${prefix}test/`) && /^test\/[^/]*\.test\.ts$/.test(f.slice(prefix.length)))
     .map((f) => f.slice(prefix.length))
-    .sort();
+    .toSorted();
 }

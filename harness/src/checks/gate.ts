@@ -193,9 +193,9 @@ function tsconfigs(repo: Repo): Problem[] {
 
 function scriptsOf(tree: Tree | null, file: string): Record<string, string> {
   const json = parseJson(tree?.read(file) ?? null);
-  const scripts = typeof json === "object" && json !== null ? (json as Record<string, unknown>).scripts : null;
-  if (typeof scripts !== "object" || scripts === null) return {};
-  return Object.fromEntries(Object.entries(scripts).filter((e): e is [string, string] => typeof e[1] === "string"));
+  const section = typeof json === "object" && json !== null ? (json as Record<string, unknown>).scripts : null;
+  if (typeof section !== "object" || section === null) return {};
+  return Object.fromEntries(Object.entries(section).filter((e): e is [string, string] => typeof e[1] === "string"));
 }
 
 function scripts(repo: Repo): Problem[] {
@@ -220,8 +220,11 @@ function scripts(repo: Repo): Problem[] {
       const tokens = script.split(/\s+/);
       // 同じ名前のファイルへ、置き場所だけが変わったもの（依存の名前の付け替えなど）は、消えたと数えない
       const basename = (token: string) => token.slice(token.lastIndexOf("/") + 1);
-      const moved = (token: string) => token.includes("/") && tokens.some((t) => t.includes("/") && basename(t) === basename(token));
-      const dropped = (before[name] ?? "").split(/\s+/).filter((token) => token && !tokens.includes(token) && !moved(token));
+      const moved = (token: string) =>
+        token.includes("/") && tokens.some((t) => t.includes("/") && basename(t) === basename(token));
+      const dropped = (before[name] ?? "")
+        .split(/\s+/)
+        .filter((token) => token && !tokens.includes(token) && !moved(token));
       if (dropped.length) add(`スクリプト ${name} から ${dropped.join(" ")} が消えている`);
     }
   }
@@ -232,7 +235,7 @@ type LintLevel = { scope: string; name: string; level: number };
 type LintConfig = { levels: LintLevel[]; ignores: string[]; typeAware: boolean };
 
 const severityOf = (value: unknown): number => {
-  const level = Array.isArray(value) ? value[0] : value;
+  const level: unknown = Array.isArray(value) ? (value as unknown[])[0] : value;
   return typeof level === "number" ? level : (SEVERITY[String(level)] ?? 0);
 };
 

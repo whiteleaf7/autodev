@@ -48,7 +48,9 @@ test("eval/ の下の見本のテストは、パッケージのテストの件�
 });
 
 test("check スクリプトを、共有の autodev check に替えるのは通し、無効化する書き方は止める", () => {
-  const files = (check: string) => ({ "package.json": JSON.stringify({ scripts: { check, typecheck: "tsc", test: "node --test" } }) });
+  const files = (check: string) => ({
+    "package.json": JSON.stringify({ scripts: { check, typecheck: "tsc", test: "node --test" } }),
+  });
   const base = files("node tools/harness/src/check.ts");
   assert.deepEqual(checksOf(files("autodev check"), base), []);
   assert.deepEqual(checksOf(files("autodev check --staged"), base), []);
@@ -85,7 +87,9 @@ test("テストが対象のコードごと消えたときは減ったと数え�
 });
 
 test("スクリプトの中のファイルが、同じ名前のまま置き場所だけ変わるのは通し、無くなるのは止める", () => {
-  const files = (test: string) => ({ "package.json": JSON.stringify({ scripts: { check: "autodev check", typecheck: "tsc", test } }) });
+  const files = (script: string) => ({
+    "package.json": JSON.stringify({ scripts: { check: "autodev check", typecheck: "tsc", test: script } }),
+  });
   const base = files("node --import @a/v/register.js --test test/*.test.ts");
   assert.deepEqual(checksOf(files("node --import a/v/register.js --test test/*.test.ts"), base), []);
   assert.ok(checksOf(files("node --test test/*.test.ts"), base).includes("neutered-script"));
@@ -129,7 +133,7 @@ test("tsconfig の検査を緩める変更を見つける", () => {
 
 test("検査のスクリプトを無意味にする変更を見つける", () => {
   const file = "tools/x/package.json";
-  const manifest = (test: string) => `{"scripts":{"typecheck":"tsc --noEmit","test":${JSON.stringify(test)}}}`;
+  const manifest = (script: string) => `{"scripts":{"typecheck":"tsc --noEmit","test":${JSON.stringify(script)}}}`;
   const base = { [file]: manifest("node --test test/*.test.ts") };
   assert.deepEqual(checksOf(base, base), []);
   assert.deepEqual(checksOf({ [file]: manifest("node --test test/*.test.ts || true") }, base), ["neutered-script"]);

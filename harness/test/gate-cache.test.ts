@@ -13,7 +13,7 @@ const files = [
 
 test("同じ中身と環境なら同じ鍵で、並びには左右されない", () => {
   const key = gateKey(files, ["node-26", "darwin"]);
-  assert.equal(gateKey([...files].reverse(), ["node-26", "darwin"]), key);
+  assert.equal(gateKey([...files].toReversed(), ["node-26", "darwin"]), key);
   assert.match(key, /^[0-9a-f]{64}$/);
 });
 

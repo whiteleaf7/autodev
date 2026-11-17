@@ -21,7 +21,9 @@ const RECALL_TOP = 3;
 
 // ゲートのコマンドは、編集を当てる前のリポジトリが決める（ゲート自体を消す編集で、基準が緩まないように）
 function gateCommand(): string {
-  const scripts = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).scripts ?? {};
+  const { scripts = {} } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+    scripts?: Record<string, string>;
+  };
   return "check" in scripts ? "pnpm check" : "pnpm typecheck && pnpm test";
 }
 
@@ -80,9 +82,12 @@ async function commit(dir: string, { message, stage }: NonNullable<Scenario["com
 
 function topIds(output: string): string[] {
   try {
-    const results: unknown = JSON.parse(output).results;
+    const results: unknown = (JSON.parse(output) as { results?: unknown }).results;
     if (!Array.isArray(results)) return [];
-    return results.slice(0, RECALL_TOP).map((r) => String(r?.id ?? ""));
+    return (results as ({ id?: unknown } | null)[]).slice(0, RECALL_TOP).map((r) => {
+      const id = r?.id;
+      return typeof id === "string" || typeof id === "number" ? String(id) : "";
+    });
   } catch {
     return [];
   }
@@ -109,7 +114,9 @@ async function pool<T, R>(items: T[], size: number, work: (item: T) => Promise<R
 // --no-cache と CI では使わない。--record（最終評価の記録）は、実行をまたいで使い回さず、この実行の中だけで共有する
 async function gateCacheEnv(template: string): Promise<NodeJS.ProcessEnv> {
   if (values["no-cache"] || process.env.CI) return { AUTODEV_NO_CACHE: "1" };
-  const file = values.record ? join(mkdtempSync(join(tmpdir(), "autodev-eval-cache-")), "cache.json") : evalCacheFile(ROOT);
+  const file = values.record
+    ? join(mkdtempSync(join(tmpdir(), "autodev-eval-cache-")), "cache.json")
+    : evalCacheFile(ROOT);
   if (!file) return { AUTODEV_NO_CACHE: "1" };
   const { output } = await run("git", ["rev-parse", "HEAD^{tree}"], template);
   return { AUTODEV_GATE_CACHE_FILE: file, AUTODEV_GATE_CACHE_SALT: output.trim() };
@@ -162,7 +169,9 @@ try {
         size,
         (s) => judge(s, template, gate, boardSnapshot, cacheEnv),
       );
-      indices.forEach((index, n) => (results[index] = done[n]!));
+      indices.forEach((index, n) => {
+        results[index] = done[n]!;
+      });
     }
     const summary = summarize(results);
     if (values.set === "public") {

@@ -12,9 +12,16 @@ if (!resolved.ok) {
 }
 
 // 既定は node。swift のスクリプトなど、別の実行系が要るものは runner で指す
-const child = spawn(resolved.runner ?? process.execPath, [join(import.meta.dirname, "..", resolved.script), ...resolved.args], {
-  stdio: "inherit",
-});
+const child = spawn(
+  resolved.runner ?? process.execPath,
+  [join(import.meta.dirname, "..", resolved.script), ...resolved.args],
+  {
+    stdio: "inherit",
+  },
+);
 // フックのように、入口が先に終わっても、取り残さない
-for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.on(signal, () => child.kill(signal));
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
+  process.on(signal, () => {
+    child.kill(signal);
+  });
 child.on("exit", (code) => process.exit(code ?? 1));

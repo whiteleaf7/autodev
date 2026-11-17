@@ -1,21 +1,68 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "options": { "typeAware": true },
-  "plugins": ["typescript", "unicorn", "oxc", "import", "node"],
-  "categories": { "correctness": "error" },
+  "options": {
+    "typeAware": true
+  },
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "oxc",
+    "import",
+    "node"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
   "rules": {
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
     "typescript/no-explicit-any": "error",
-    "no-unused-vars": ["error", { "ignoreRestSiblings": true }],
+    "no-unused-vars": [
+      "error",
+      {
+        "ignoreRestSiblings": true
+      }
+    ],
     "no-empty": "error",
     "no-empty-function": "error",
-    "import/no-cycle": ["error", { "ignoreTypes": false }]
+    "import/no-cycle": [
+      "error",
+      {
+        "ignoreTypes": false
+      }
+    ],
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/strict-void-return": "error",
+    "no-promise-executor-return": "error",
+    "typescript/no-unsafe-type-assertion": "off",
+    "unicorn/consistent-function-scoping": "off"
   },
   "overrides": [
     {
-      "files": ["**/test/**"],
-      "rules": { "typescript/no-floating-promises": "off", "no-empty-function": "off" }
+      "files": [
+        "**/test/**"
+      ],
+      "rules": {
+        "typescript/no-floating-promises": "off",
+        "no-empty-function": "off"
+      }
+    },
+    {
+      "files": [
+        "verify/register.js"
+      ],
+      "rules": {
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-return": "off"
+      }
     }
   ],
   "ignorePatterns": []

@@ -66,7 +66,9 @@ const repo = loadRepo(ROOT);
 const requested = process.argv.slice(2).filter((arg) => arg !== "--all");
 // 引数なしで全体（数十分）が回ってしまわないよう、全体は --all のときだけ回す
 if (!requested.length && !process.argv.includes("--all")) {
-  console.error("使い方: autodev mutate <ファイル>…（tools/ の全体は --all。約 600 件で、10 コアの Mac で約 50 分かかる）");
+  console.error(
+    "使い方: autodev mutate <ファイル>…（tools/ の全体は --all。約 600 件で、10 コアの Mac で約 50 分かかる）",
+  );
   process.exit(2);
 }
 const targets = requested.length
@@ -74,12 +76,15 @@ const targets = requested.length
   : repo.files.filter((f) => /^tools\/[^/]+\/(src\/.+\.ts|public\/.+\.js)$/.test(f));
 const packages = packageDirs(repo).filter(Boolean);
 const packageOf = (file: string) =>
-  packages.filter((dir) => file.startsWith(`${dir}/`)).sort((a, b) => b.length - a.length)[0];
+  packages.filter((dir) => file.startsWith(`${dir}/`)).toSorted((a, b) => b.length - a.length)[0];
 
 // 届くテストで先に止め、通ったときだけ全部を回す。生き残りの判定は、いつも全部のテストで行う
 const scriptsOf = (dir: string): Scripts => {
   try {
-    return (JSON.parse(repo.read(dir === "." ? "package.json" : `${dir}/package.json`) ?? "{}").scripts ?? {}) as Scripts;
+    const pkg = JSON.parse(repo.read(dir === "." ? "package.json" : `${dir}/package.json`) ?? "{}") as {
+      scripts?: Scripts;
+    };
+    return pkg.scripts ?? {};
   } catch {
     return {};
   }
@@ -150,7 +155,8 @@ try {
 }
 
 const show = (m: Mutant, note = "") => console.log(`  ${m.line}: ${m.label}${note}  |  ${m.before.slice(0, 110)}`);
-const inFile = (list: Mutant[], file: string) => list.filter((m) => m.file === file).sort((a, b) => a.line - b.line);
+const inFile = (list: Mutant[], file: string) =>
+  list.filter((m) => m.file === file).toSorted((a, b) => a.line - b.line);
 for (const file of targets) {
   const total = mutants.filter((m) => m.file === file).length;
   const alive = inFile(survivors, file);

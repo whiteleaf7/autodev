@@ -11,7 +11,7 @@ export type DecisionFile = { file: string; text: string };
 export const decisionFiles = (repo: Repo): DecisionFile[] =>
   repo.files
     .filter(isDecisionFile)
-    .sort()
+    .toSorted()
     .map((file) => ({ file, text: repo.read(file) ?? "" }));
 
 export const checkRecords = (repo: Repo, lint: (files: DecisionFile[]) => Problem[]): Problem[] =>

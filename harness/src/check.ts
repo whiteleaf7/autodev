@@ -85,7 +85,8 @@ async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise
   for (const result of [lint, typecheck]) process.stdout.write(result.output);
   if (lint.status !== 0 || typecheck.status !== 0) return finish(lint.status !== 0 ? lint.status : typecheck.status);
 
-  const rootTest = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).scripts?.test as string | undefined;
+  const rootTest = (JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { scripts?: { test?: string } })
+    .scripts?.test;
   const test = await timed("テスト", () =>
     runInherited("pnpm", testArgs(env, rootTest, existsSync(join(dir, ".git"))), options),
   );

@@ -15,19 +15,31 @@ export function formatTimings(stages: Stage[]): string {
 export type Buffered = { status: number; output: string };
 
 // 標準出力と標準エラーを、届いた順に 1 つにためる。並列に動かしたものを、あとで順に表示するために使う
-export function runBuffered(command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv }): Promise<Buffered> {
+export function runBuffered(
+  command: string,
+  args: string[],
+  options: { cwd: string; env: NodeJS.ProcessEnv },
+): Promise<Buffered> {
   return new Promise((done) => {
     const child = spawn(command, args, { ...options, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
-    child.stdout.on("data", (chunk) => (output += chunk));
-    child.stderr.on("data", (chunk) => (output += chunk));
+    child.stdout.on("data", (chunk) => {
+      output += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      output += chunk;
+    });
     child.on("error", (error) => done({ status: 1, output: `${output}${command} を起動できない: ${error.message}\n` }));
     child.on("close", (code) => done({ status: code ?? 1, output }));
   });
 }
 
 // 出力をそのまま端末に流しながら動かす（テストのように、長く動いて、進み具合を見たいもの）
-export function runInherited(command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv }): Promise<number> {
+export function runInherited(
+  command: string,
+  args: string[],
+  options: { cwd: string; env: NodeJS.ProcessEnv },
+): Promise<number> {
   return new Promise((done) => {
     const child = spawn(command, args, { ...options, stdio: "inherit" });
     child.on("error", () => done(1));

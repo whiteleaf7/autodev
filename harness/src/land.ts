@@ -6,6 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { withoutGitEnv } from "./env.ts";
 import { ciVerdict, type Check, type Commit, pullRequestBody } from "./pull-request.ts";
 import { parseWorktrees } from "./worktrees.ts";
@@ -78,7 +79,7 @@ async function withLandLock<T>(lock: string, branch: string, fn: () => Promise<T
         throw new LandError(`取り込みのロック ${lock} が ${WAIT_MS / 60_000} 分たっても外れない`);
       if (!announced && owner) console.error(`land: ${owner.branch} の取り込みが終わるのを待っている`);
       announced = true;
-      await new Promise((r) => setTimeout(r, POLL_MS));
+      await sleep(POLL_MS);
     }
   }
   try {
@@ -175,7 +176,7 @@ async function waitForCi(top: string, pr: string): Promise<void> {
         `PR #${pr} の CI が落ちた（${verdict.failed.join(", ")}）。マージはしていない。gh pr checks ${pr} で確かめて直し、コミットしてもう一度 pnpm land を実行する`,
       );
     if (Date.now() > deadline) throw new LandError(`PR #${pr} の CI が ${CI_WAIT_MS / 60_000} 分たっても終わらない`);
-    await new Promise((r) => setTimeout(r, CI_POLL_MS));
+    await sleep(CI_POLL_MS);
   }
 }
 
