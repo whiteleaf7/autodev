@@ -4,7 +4,6 @@
 //   autodev check --staged   index（コミットされる中身）を一時ディレクトリに写して検査する。pre-commit が使う
 
 import { projectRoot } from "./project-root.ts";
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { checkConventions } from "./checks/conventions.ts";
@@ -18,7 +17,7 @@ import { loadRepo, type Problem, type Repo } from "./repo.ts";
 import { LINKED_MODULES_ENV, snapshotIndex } from "./snapshot.ts";
 import { cacheFile, environmentOf, gateKey, hashFiles, lookup, readEntries, recordPass } from "./gate-cache.ts";
 import { formatTimings, runBuffered, runInherited, type Stage } from "./steps.ts";
-import { TEST_BASE_ENV, testArgs } from "./test-scope.ts";
+import { testArgs } from "./test-scope.ts";
 
 const ROOT = projectRoot();
 
@@ -34,14 +33,6 @@ function notifyIfBehindCommon(repo: Repo): void {
 
 // 結果の再利用を使うか。CI と --no-cache と AUTODEV_NO_CACHE では使わない
 const useCache = () => !process.env.CI && !process.env.AUTODEV_NO_CACHE && !process.argv.includes("--no-cache");
-
-// テストを絞る基点（AUTODEV_TEST_BASE）からの差分のファイル。基点の指定が無ければ空、差分を取れなければ null
-function changedFromTestBase(dir: string, env: NodeJS.ProcessEnv): string[] | null {
-  const base = env[TEST_BASE_ENV];
-  if (!base) return [];
-  const diff = spawnSync("git", ["diff", "--name-only", base], { cwd: dir, env, encoding: "utf8" });
-  return diff.status === 0 ? diff.stdout.split("\n").filter(Boolean) : null;
-}
 
 // 終了コードを返す。lint と型チェックは、互いに関係しないので並列に回し、出力は lint、型チェックの順に表示する。テストは、そのあと
 async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise<number> {
@@ -96,9 +87,9 @@ async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise
 
   const rootTest = (JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { scripts?: { test?: string } })
     .scripts?.test;
-  const hasGit = existsSync(join(dir, ".git"));
-  const scope = testArgs(env, rootTest, hasGit, hasGit ? changedFromTestBase(dir, env) : []);
-  const test = await timed("テスト", () => runInherited("pnpm", scope, options));
+  const test = await timed("テスト", () =>
+    runInherited("pnpm", testArgs(env, rootTest, existsSync(join(dir, ".git"))), options),
+  );
   if (test !== 0) return finish(test);
 
   if (file && key) recordPass(file, key, Date.now());
