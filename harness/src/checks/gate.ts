@@ -54,6 +54,13 @@ const NEUTERED = [
   /--noCheck|--test-only|--test-(skip|name)-pattern/,
 ];
 
+// bun check は、tsc --noEmit と同じ型検査（同じエラーを出す）。書き換えで tsc が消えたと数えないよう、同じ形にそろえて比べる
+const normalizeScript = (script: string) =>
+  script.replace(/\bbun check\b/g, "tsc --noEmit").replace(/(^|\s)--no-script(?=\s|$)/g, "");
+// package.json に check スクリプトがあると、bun check は型検査をせず、そちらを動かす。--no-script で避ける
+const BUN_CHECK = /\bbun check\b/;
+const NO_SCRIPT = /(^|\s)--no-script(\s|=|$)/;
+
 const isProductPath = (path: string) => /^(tools|apps|packages)\//.test(path);
 
 function testCases(text: string | null): number {
@@ -217,12 +224,14 @@ function scripts(repo: Repo): Problem[] {
         add(`スクリプト ${name} が、一部のパッケージだけに絞っている`);
       // ゲート本体の呼び出しを、共有の autodev コマンドに替えるのは、緩めではない（検査の中身は autodev が持つ）。無効化する書き方は、上の NEUTERED が止める
       if (name === "check" && /(^|\s)autodev check(\s|$)/.test(script)) continue;
-      const tokens = script.split(/\s+/);
+      if (name !== "check" && now.check !== undefined && BUN_CHECK.test(script) && !NO_SCRIPT.test(script))
+        add(`スクリプト ${name} の bun check に --no-script が無い（check スクリプトを動かすだけで、型検査をしない）`);
+      const tokens = normalizeScript(script).split(/\s+/);
       // 同じ名前のファイルへ、置き場所だけが変わったもの（依存の名前の付け替えなど）は、消えたと数えない
       const basename = (token: string) => token.slice(token.lastIndexOf("/") + 1);
       const moved = (token: string) =>
         token.includes("/") && tokens.some((t) => t.includes("/") && basename(t) === basename(token));
-      const dropped = (before[name] ?? "")
+      const dropped = normalizeScript(before[name] ?? "")
         .split(/\s+/)
         .filter((token) => token && !tokens.includes(token) && !moved(token));
       if (dropped.length) add(`スクリプト ${name} から ${dropped.join(" ")} が消えている`);

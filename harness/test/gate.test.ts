@@ -269,3 +269,26 @@ test("パッケージが検査から外れる変更を見つける", () => {
   const { "tools/x/package.json": _removed, ...withoutManifest } = files;
   assert.deepEqual(checksOf(withoutManifest), ["unplugged-package"]);
 });
+
+test("tsc を bun check に替えるのは通し、型検査が動かない書き方は止める", () => {
+  const file = "tools/x/package.json";
+  const manifest = (typecheck: string, extra = "") =>
+    `{"scripts":{"typecheck":${JSON.stringify(typecheck)},"test":"node --test"${extra}}}`;
+  const base = { [file]: manifest("tsc --noEmit") };
+  assert.deepEqual(checksOf({ [file]: manifest("bun check") }, base), []);
+  assert.deepEqual(checksOf({ [file]: manifest("bun check --no-script") }, base), []);
+  assert.deepEqual(checksOf({ [file]: manifest("bun check --no-script && pnpm -r typecheck") }, base), []);
+  assert.deepEqual(checksOf({ [file]: manifest("tsc --noEmit") }, { [file]: manifest("bun check --no-script") }), []);
+  assert.deepEqual(checksOf({ [file]: manifest("bun check || true") }, base), ["neutered-script"]);
+  assert.deepEqual(checksOf({ [file]: manifest("bun check --noCheck") }, base), ["neutered-script"]);
+  // check スクリプトのあるパッケージで --no-script を付けないと、bun check は型検査をせず check スクリプトを動かす
+  const withCheck = `,"check":"node src/check.ts"`;
+  assert.deepEqual(
+    checksOf({ [file]: manifest("bun check", withCheck) }, { [file]: manifest("tsc --noEmit", withCheck) }),
+    ["neutered-script"],
+  );
+  assert.deepEqual(
+    checksOf({ [file]: manifest("bun check --no-script", withCheck) }, { [file]: manifest("tsc --noEmit", withCheck) }),
+    [],
+  );
+});
