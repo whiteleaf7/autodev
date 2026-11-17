@@ -84,6 +84,14 @@ test("テストが対象のコードごと消えたときは減ったと数え�
   assert.deepEqual(checksOf({ ...kept, "tools/x/src/b.ts": "export const b = 1;\n" }, base), ["removed-test"]);
 });
 
+test("スクリプトの中のファイルが、同じ名前のまま置き場所だけ変わるのは通し、無くなるのは止める", () => {
+  const files = (test: string) => ({ "package.json": JSON.stringify({ scripts: { check: "autodev check", typecheck: "tsc", test } }) });
+  const base = files("node --import @a/v/register.js --test test/*.test.ts");
+  assert.deepEqual(checksOf(files("node --import a/v/register.js --test test/*.test.ts"), base), []);
+  assert.ok(checksOf(files("node --test test/*.test.ts"), base).includes("neutered-script"));
+  assert.ok(checksOf(files("node --import a/v/other.js --test test/*.test.ts"), base).includes("neutered-script"));
+});
+
 test("アサーションの無いテストを見つける", () => {
   const file = "tools/x/test/a.test.ts";
   assert.deepEqual(checksOf({ [file]: `test("a", () => {\n  run();\n});\n` }), ["hollow-test"]);
