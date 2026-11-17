@@ -12,6 +12,7 @@ import { snapshotBoard } from "./devboard-cli.ts";
 import { loadScenarios, type Scenario } from "./scenario.ts";
 import { applyEdits, cloneTemplate, createTemplate, removeDir, run } from "./sandbox.ts";
 import { formatSummary, summarize, type Outcome, type Result } from "./score.ts";
+import { TEST_SCOPE_ENV } from "./test-scope.ts";
 
 const ROOT = projectRoot();
 const RECALL_TOP = 3;
@@ -51,7 +52,7 @@ async function judge(scenario: Scenario, template: string, gate: string, boardSn
       ? await run("devboard", ["apply", JSON.stringify(scenario.board)], dir, env)
       : scenario.commit
         ? await commit(dir, scenario.commit, env)
-        : await run("sh", ["-c", gate], dir, env);
+        : await run("sh", ["-c", gate], dir, { ...env, [TEST_SCOPE_ENV]: "changed" });
     const stopped = code !== 0;
     const outcome: Outcome =
       scenario.kind === "bad" ? (stopped ? "caught" : "missed") : stopped ? "false-alarm" : "passed";

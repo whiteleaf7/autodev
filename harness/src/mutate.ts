@@ -62,7 +62,12 @@ function mutantsOf(file: string, text: string): Mutant[] {
 const TIMEOUT_MS = 180_000;
 
 const repo = loadRepo(ROOT);
-const requested = process.argv.slice(2);
+const requested = process.argv.slice(2).filter((arg) => arg !== "--all");
+// 引数なしで全体（数十分）が回ってしまわないよう、全体は --all のときだけ回す
+if (!requested.length && !process.argv.includes("--all")) {
+  console.error("使い方: autodev mutate <ファイル>…（tools/ の全体は --all。約 600 件で、10 コアの Mac で約 50 分かかる）");
+  process.exit(2);
+}
 const targets = requested.length
   ? requested
   : repo.files.filter((f) => /^tools\/[^/]+\/(src\/.+\.ts|public\/.+\.js)$/.test(f));
