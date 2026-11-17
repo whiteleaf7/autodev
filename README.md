@@ -55,20 +55,21 @@ Chrome を操作する補助ライブラリ（`verify/src/chrome.ts` の `withCh
 ```json
 {
   "devDependencies": {
-    "@autodev/verify": "github:whiteleaf7/autodev#path:/verify"
+    "autodev": "github:whiteleaf7/autodev"
   },
   "scripts": {
-    "test": "node --import @autodev/verify/register.js --test test/*.test.ts"
+    "test": "node --import autodev/verify/register.js --test test/*.test.ts"
   }
 }
 ```
 
 ```ts
-import { withChrome } from "@autodev/verify/src/chrome.ts";
+import { withChrome } from "autodev/verify/src/chrome.ts";
 ```
 
-- git 依存は `node_modules` の中に入り、Node は `node_modules` の中の `.ts` の型を剥がして実行しない（`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`）。`verify/register.js` を `--import` で読むと、このパッケージの `.ts` だけは読めるようになる
-- 版は、ロックファイルが固定する（コミット）。更新は `pnpm update @autodev/verify`。コマンド（`autodev check` など）と違い、ライブラリは、更新するまで固定の版が使われる
+- git 依存は `node_modules` の中に入り、Node は `node_modules` の中の `.ts` の型を剥がして実行しない（`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`）。`verify/register.js` を `--import` で読むと、`autodev/verify/` の `.ts` だけは読めるようになる
+- `verify/` だけを `#path:/verify` で取り込む書き方は使わない。pnpm が、新しいストアでの `--frozen-lockfile` の取得で path を無視し、リポジトリの全体を取り込んでしまう（CI で import が解決できず落ちる）。リポジトリのルート（`autodev`）を依存にして、`autodev/verify/…` で import する
+- 版は、ロックファイルが固定する（コミット）。更新は `pnpm update autodev`。コマンド（`autodev check` など）と違い、ライブラリは、更新するまで固定の版が使われる
 
 ## 構成
 
