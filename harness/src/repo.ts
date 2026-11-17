@@ -31,6 +31,57 @@ function cached(read: (path: string) => string | null): (path: string) => string
   };
 }
 
+const baseFiles = (listed: string): string[] => listed.split("\0").filter(Boolean);
+
+// ゲートが基点と比べるのは、テスト・package.json・tsconfig・lint と整形の設定。1 つずつ git show すると、1000 件近くで 10 秒近くかかるので、
+// 最初の 1 回で、まとめて git cat-file --batch で読む。それ以外は、必要になったとき 1 つずつ読む
+const PREFETCHED_FROM_BASE =
+  /(^|\/)(package\.json|tsconfig[^/]*\.json|\.oxlintrc\.json|biome\.json)$|\.test\.(ts|tsx|mts|js|mjs)$/;
+
+// git cat-file --batch の出力（<ID> blob <バイト数>\n<中身>\n、または <指定> missing\n）を、指定の順に読む
+export function parseCatFileBatch(output: Buffer, specs: string[]): Map<string, string | null> {
+  const result = new Map<string, string | null>();
+  let pos = 0;
+  for (const spec of specs) {
+    const end = output.indexOf(0x0a, pos);
+    if (end < 0) break;
+    const header = output.subarray(pos, end).toString("utf8");
+    pos = end + 1;
+    const size = /^[0-9a-f]+ blob (\d+)$/.exec(header)?.[1];
+    if (size === undefined) {
+      result.set(spec, null);
+      continue;
+    }
+    result.set(spec, output.subarray(pos, pos + Number(size)).toString("utf8"));
+    pos += Number(size) + 1;
+  }
+  return result;
+}
+
+function baseReader(root: string, files: string[]): (path: string) => string | null {
+  let prefetched: Map<string, string | null> | null = null;
+  const prefetch = (): Map<string, string | null> => {
+    const wanted = files.filter((f) => PREFETCHED_FROM_BASE.test(f));
+    const specs = wanted.map((f) => `HEAD:${f}`);
+    try {
+      const output = execFileSync("git", ["cat-file", "--batch"], {
+        cwd: root,
+        input: specs.map((spec) => `${spec}\n`).join(""),
+        maxBuffer: 512 * 1024 * 1024,
+        stdio: ["pipe", "pipe", "ignore"],
+      });
+      const read = parseCatFileBatch(output, specs);
+      return new Map(wanted.map((f) => [f, read.get(`HEAD:${f}`) ?? null]));
+    } catch {
+      return new Map();
+    }
+  };
+  return cached((path) => {
+    prefetched ??= prefetch();
+    return prefetched.has(path) ? (prefetched.get(path) ?? null) : git(root, ["show", `HEAD:${path}`]);
+  });
+}
+
 // staged を渡すと、作業ツリーの代わりに、index を写したもの（snapshot.ts の snapshotIndex）をいまの姿として読む
 export function loadRepo(root: string, staged?: { dir: string; files: string[] }): Repo {
   const listed = staged?.files ?? git(root, ["ls-files", "-co", "--exclude-standard", "-z"])?.split("\0");
@@ -45,8 +96,8 @@ export function loadRepo(root: string, staged?: { dir: string; files: string[] }
       baseListed === null
         ? null
         : {
-            files: baseListed.split("\0").filter(Boolean),
-            read: cached((path) => git(root, ["show", `HEAD:${path}`])),
+            files: baseFiles(baseListed),
+            read: baseReader(root, baseFiles(baseListed)),
           },
   };
 }

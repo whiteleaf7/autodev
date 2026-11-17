@@ -4,7 +4,6 @@
 //   autodev check --staged   index（コミットされる中身）を一時ディレクトリに写して検査する。pre-commit が使う
 
 import { projectRoot } from "./project-root.ts";
-import { spawnSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import { checkConventions } from "./checks/conventions.ts";
 import { checkDocs } from "./checks/docs.ts";
@@ -15,6 +14,7 @@ import { lintDecisionFiles, requireToolNames } from "./devboard-cli.ts";
 import { withoutGitEnv } from "./env.ts";
 import { loadRepo, type Problem, type Repo } from "./repo.ts";
 import { LINKED_MODULES_ENV, snapshotIndex } from "./snapshot.ts";
+import { formatTimings, runBuffered, runInherited, type Stage } from "./steps.ts";
 
 const ROOT = projectRoot();
 
@@ -28,29 +28,50 @@ function notifyIfBehindCommon(repo: Repo): void {
   if (message) console.log(`check: 注意: ${message}`);
 }
 
-// 終了コードを返す
-function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): number {
-  const problems = [
+// 終了コードを返す。lint と型チェックは、互いに関係しないので並列に回し、出力は lint、型チェックの順に表示する。テストは、そのあと
+async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise<number> {
+  const stages: Stage[] = [];
+  const timed = async <T>(name: string, work: () => Promise<T> | T): Promise<T> => {
+    const started = performance.now();
+    try {
+      return await work();
+    } finally {
+      stages.push({ name, ms: performance.now() - started });
+    }
+  };
+  const finish = (code: number): number => {
+    console.log(formatTimings(stages));
+    return code;
+  };
+
+  const problems = await timed("速い検査", () => [
     ...checkGate(repo),
     ...checkConventions(repo),
     ...checkRecords(repo, (files) => lintDecisionFiles(files, dir)),
     ...checkDocs(repo, requireToolNames(dir)),
     ...checkRules(repo),
-  ];
+  ]);
   if (problems.length) {
     for (const problem of problems) console.error(formatProblem(problem));
     console.error(
       `\n${problems.length} 件の問題がある。直してから、もう一度 pnpm check を実行する（lint・型チェック・テストは、これが通ってから走る）`,
     );
-    return 1;
+    return finish(1);
   }
-  for (const script of ["lint", "typecheck", "test"]) {
-    const { status } = spawnSync("pnpm", [script], { cwd: dir, stdio: "inherit", env });
-    if (status !== 0) return status ?? 1;
-  }
+
+  const options = { cwd: dir, env };
+  const [lint, typecheck] = await timed("lint・型チェック（並列）", () =>
+    Promise.all([runBuffered("pnpm", ["lint"], options), runBuffered("pnpm", ["typecheck"], options)]),
+  );
+  for (const result of [lint, typecheck]) process.stdout.write(result.output);
+  if (lint.status !== 0 || typecheck.status !== 0) return finish(lint.status !== 0 ? lint.status : typecheck.status);
+
+  const test = await timed("テスト", () => runInherited("pnpm", ["test"], options));
+  if (test !== 0) return finish(test);
+
   console.log("check: すべて通った");
   notifyIfBehindCommon(repo);
-  return 0;
+  return finish(0);
 }
 
 // フックから呼ばれると GIT_ の環境変数を受け取る。index を読むにはそれが要るが、
@@ -62,11 +83,11 @@ if (process.argv.includes("--staged")) {
   let code: number;
   try {
     console.log(`check: コミットされる中身（index）を ${staged.dir} に写して検査する`);
-    code = runGate(loadRepo(ROOT, staged), staged.dir, { ...childEnv, ...LINKED_MODULES_ENV });
+    code = await runGate(loadRepo(ROOT, staged), staged.dir, { ...childEnv, ...LINKED_MODULES_ENV });
   } finally {
     rmSync(staged.dir, { recursive: true, force: true });
   }
   process.exit(code);
 } else {
-  process.exit(runGate(loadRepo(ROOT), ROOT, childEnv));
+  process.exit(await runGate(loadRepo(ROOT), ROOT, childEnv));
 }
