@@ -67,7 +67,7 @@ export function parseEntries(text: string | null, now: number): Entry[] {
 
 export const lookup = (entries: Entry[], key: string): Entry | undefined => entries.find((entry) => entry.key === key);
 
-function commonDir(root: string): string | null {
+export function gitCommonDir(root: string): string | null {
   try {
     return execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
       cwd: root,
@@ -83,13 +83,13 @@ function commonDir(root: string): string | null {
 // （評価が、複製ごとに捨てられる .git ではなく、実行をまたいで残る 1 つの記録を、複製の全部に使わせるため）
 export function cacheFile(root: string, env: NodeJS.ProcessEnv = process.env): string | null {
   if (env.AUTODEV_GATE_CACHE_FILE) return env.AUTODEV_GATE_CACHE_FILE;
-  const common = commonDir(root);
+  const common = gitCommonDir(root);
   return common ? join(common, "autodev-gate-cache.json") : null;
 }
 
 // 評価の複製が使う記録。本物のゲートの記録とは分ける（評価の複製の「通った」を、本物のゲートが使わないように）
 export function evalCacheFile(root: string): string | null {
-  const common = commonDir(root);
+  const common = gitCommonDir(root);
   return common ? join(common, "autodev-eval-gate-cache.json") : null;
 }
 

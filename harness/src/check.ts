@@ -6,6 +6,7 @@
 import { projectRoot } from "./project-root.ts";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { gateModes, splitByMode } from "./check-modes.ts";
 import { checkConventions } from "./checks/conventions.ts";
 import { checkDocs } from "./checks/docs.ts";
 import { checkGate } from "./checks/gate.ts";
@@ -16,6 +17,7 @@ import { withoutGitEnv } from "./env.ts";
 import { loadRepo, type Problem, type Repo } from "./repo.ts";
 import { LINKED_MODULES_ENV, snapshotIndex } from "./snapshot.ts";
 import { cacheFile, environmentOf, gateKey, hashFiles, lookup, readEntries, recordPass } from "./gate-cache.ts";
+import { appendGateLog, gateLogFile } from "./gate-log.ts";
 import { formatTimings, runBuffered, runInherited, type Stage } from "./steps.ts";
 import { testArgs } from "./test-scope.ts";
 
@@ -50,13 +52,30 @@ async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise
     return code;
   };
 
-  const problems = await timed("速い検査", () => [
-    ...checkGate(repo),
-    ...checkConventions(repo),
-    ...checkRecords(repo, (files) => lintDecisionFiles(files, dir)),
-    ...checkDocs(repo, requireToolNames(dir)),
-    ...checkRules(repo),
-  ]);
+  const { blocking: problems, observed } = await timed("速い検査", () => {
+    const modes = gateModes(repo);
+    return splitByMode(
+      [
+        ...modes.problems,
+        ...checkGate(repo),
+        ...checkConventions(repo),
+        ...checkRecords(repo, (files) => lintDecisionFiles(files, dir)),
+        ...checkDocs(repo, requireToolNames(dir)),
+        ...checkRules(repo),
+      ],
+      modes.modeOf,
+    );
+  });
+  const logFile = gateLogFile(ROOT);
+  if (logFile) {
+    const at = Date.now();
+    appendGateLog(logFile, [
+      ...observed.map((problem) => ({ at, mode: "observe" as const, ...problem })),
+      ...problems.map((problem) => ({ at, mode: "enforce" as const, ...problem })),
+    ]);
+  }
+  for (const problem of observed) console.log(`check: 記録だけ（observe）: ${formatProblem(problem)}`);
+  if (observed.length) console.log(`check: observe の ${observed.length} 件は止めない。記録は autodev gate-log で見る`);
   if (problems.length) {
     for (const problem of problems) console.error(formatProblem(problem));
     console.error(

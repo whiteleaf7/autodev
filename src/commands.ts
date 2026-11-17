@@ -4,6 +4,7 @@
 const COMMANDS = {
   init: { script: "harness/src/init.ts", summary: "新しいプロジェクトに、autodev を使う設定と文書の雛形を書いて、初期化する" },
   check: { script: "harness/src/check.ts", summary: "ゲート（評価の緩め・規約・記録・ドキュメントの検査のあと、lint・型チェック・テスト）。--staged で index を検査する" },
+  "gate-log": { script: "harness/src/show-gate-log.ts", summary: "速い検査の記録（observe が止めずに記録したもの、enforce が止めたもの）の件数と例。--check で 1 つの検査に絞る" },
   hook: { script: "harness/src/hook.ts", summary: "git のフックの本体（pre-commit・commit-msg・pre-push）。フックの設定から呼ぶ" },
   land: { script: "harness/src/land.ts", summary: "作業ブランチを、rebase → ゲート → PR → CI → マージで main に取り込む" },
   prune: { script: "harness/src/prune.ts", summary: "取り込み済みの作業用 worktree を片付ける" },

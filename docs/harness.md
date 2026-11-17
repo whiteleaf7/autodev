@@ -20,6 +20,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 | 記録 | 形式の崩れた決定記録（形式の決まりは devboard が持ち、`devboard lint-decisions` に渡して調べる。タスクの決まりは、ボードに書く時点で devboard が断る） | `harness/src/checks/records.ts` |
 | ドキュメント | 存在しないスクリプト・パス・決定記録・MCP ツールへの言及、設定が指す先の欠け。MCP ツールの名前は、`devboard tools` が返す登録済みの名前と照らす | `harness/src/checks/docs.ts` |
 | 共通の規約 | AGENTS.md の共通の規約の区画の中身が、始まりの行に記録したハッシュと合うか（区画が無い AGENTS.md は見ない。CI でも動く）。autodev の最新の共通の規約と区画が違うときは、案内だけを出して止めない。区画は直接直さず、`autodev rules-sync` で更新する | `harness/src/checks/rules.ts` |
+| 検査の mode | `.autodev/gate.json` の崩れ、検査の mode を基点より下げる変更（enforce → observe・off、observe → off。既定が observe の検査を enforce に上げた設定を消すのも含む）。この 2 つの検査の mode は、設定では変えられない | `harness/src/check-modes.ts` |
 | lint | 待っていない Promise、`any`、理由の無い空の catch・空の関数、使っていない変数、import の循環（型だけの import も数える）、oxlint の correctness のルール | `pnpm lint`（oxlint と oxlint-tsgolint。設定は `.oxlintrc.json`） |
 | 型と振る舞い | 型エラー、テストの失敗 | `pnpm typecheck`、`pnpm test` |
 
@@ -32,8 +33,26 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 - lint の指摘は直す。意図したものだけ、`// oxlint-disable-next-line <ルール> -- 理由` で行ごとに外す（理由が無いものと、ファイルごとの除外はゲートが止める）
 - タスク・教訓・マイルストーンは git の外の SQLite にある。書き込みが決まり（メモの無い done・cancelled・blocked、AI のタスクの review、子が残る親の done、切れた親・依存・マイルストーン、循環）に新しく反するなら、store が書かずに断る。ボードに書くのは AI だけ（ダッシュボードは読み取り専用。）で、もとからある問題（以前に画面から書かれたものなど）は断らず、`get_overview` の `problems` に出る
 - 振る舞いを変えるタスク（`paths` か、`Task:` の行でそのタスクを指したコミットが変えたファイルに、`docs/` と `.md` 以外があるもの）を AI が `done` にするときは、どれかのメモに「動かした: `コマンド` → 結果」の行が要る。コマンドがテスト・型チェック・lint・ビルドだけなら断る（devboard の `src/rules.ts` の `closingProblems`）。コミットも見るのは、`paths` を書かずに閉じて決まりを抜けられないようにするため。コミットはすべてのブランチから探すので、取り込む前の worktree のコミットも数える。done にする瞬間だけを見るので、この決まりの前に閉じたタスクは `problems` に出ない。書き方と手段は `docs/verification.md` の「done にするときに残すもの」
-- 検査を足す・変えるときは、止める例と通す例を `.autodev/eval/public/` に足し、`harness/test/` にテストを書く
+- 検査を足す・変えるときは、止める例と通す例を `.autodev/eval/public/` に足し、`harness/test/` にテストを書く。新しい検査は observe で始める（下の「検査の mode」）
 - どうしても通せない正当な変更（対象のコードごとテストを消す、など）は、理由を決定記録に残したうえで `git commit --no-verify` を使う
+
+### 検査の mode（off / observe / enforce）
+
+速い検査（上の表の、lint・型と振る舞いより前のもの）は、検査ごとに mode を持つ。lint・型チェック・テストは mode を持たない（lint のルールを試すときは、oxlint の `warn` を使う）。
+
+- `enforce`: 見つけたら止める。設定も既定も無い検査は、これになる
+- `observe`: 止めずに、何を止めたはずかを出力して記録に残す。新しい検査の誤検出を、実際の作業で見るための段
+- `off`: 見ない
+- autodev の既定は `harness/src/check-modes.ts` の `DEFAULT_MODES`（名前の無い検査は enforce）。プロジェクトは `.autodev/gate.json`（`{"checks": {"<検査の名前>": "observe"}}`。名前は出力の `[...]` の中のもの）で上げ下げできる。ただし基点より下げる変更はゲートが止める（`loosened-gate-mode`）。誤検出で下げたいときは、下げずに、通すべき例を `.autodev/eval/public/` に足して検査を直す。どうしても下げるときは、ほかの緩めと同じく、理由を決定記録に残して `--no-verify`
+- 記録: observe の検査が見つけたものと、enforce の検査が止めたものを、`<git の共通のディレクトリ>/autodev-gate-log.jsonl` に 1 件 1 行で残す（worktree の間で共有。リポジトリには入らない）。`autodev gate-log` が、mode と検査ごとに、違う指摘の数・記録した回数・最後の日時と、回数の多い例を 3 件まで出す。`--check <名前>` で 1 つの検査の指摘をすべて出す。同じ中身を手での check・pre-commit・land が続けて検査するので、回数は同じ指摘が重なる。誤検出かどうかは、違う指摘の方で見る
+- 同じ検査に何度止められても、ゲートは自動では通さない。enforce の検査は誤検出が無いのを確かめてから上げたものなので、通すと、止めるべき変更がそのまま main に入る。直らなければ、検査を緩めず、試したことと止めた指摘をタスクのメモに書いて `blocked` にし、ほかのタスクへ進む。誤検出なら、その例を通す例として `public/` に足して検査を直すタスクにする
+
+#### 検査を足すとき（observe で始める）
+
+1. 検査を書き、止める例と通す例を `.autodev/eval/public/` に、テストを `harness/test/` に足す
+2. `DEFAULT_MODES` に `"<検査の名前>": "observe"` で足して取り込む。使っているすべてのプロジェクトで、止めずに記録が始まる
+3. しばらく作業してから、各プロジェクトで `autodev gate-log --check <名前>` を見る。誤検出があれば、その例を通す例として `public/` に足して検査を直す
+4. 誤検出が無くなったら、`DEFAULT_MODES` から消して enforce にする。先に 1 つのプロジェクトだけで止めたいときは、そのプロジェクトの `.autodev/gate.json` で `enforce` にする（上げる変更は止めない）
 
 ## フック（`.githooks/`）
 
