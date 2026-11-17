@@ -6,6 +6,7 @@ import { projectRoot } from "./project-root.ts";
 import { readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { join, resolve } from "node:path";
+import { directCommand, testFilesOf, type Scripts } from "./mutate-command.ts";
 import { testsReaching } from "./related-tests.ts";
 import { loadRepo, packageDirs } from "./repo.ts";
 import { cloneTemplate, createTemplate, removeDir, run, TIMED_OUT } from "./sandbox.ts";
@@ -76,8 +77,19 @@ const packageOf = (file: string) =>
   packages.filter((dir) => file.startsWith(`${dir}/`)).sort((a, b) => b.length - a.length)[0];
 
 // 届くテストで先に止め、通ったときだけ全部を回す。生き残りの判定は、いつも全部のテストで行う
+const scriptsOf = (dir: string): Scripts => {
+  try {
+    return (JSON.parse(repo.read(dir === "." ? "package.json" : `${dir}/package.json`) ?? "{}").scripts ?? {}) as Scripts;
+  } catch {
+    return {};
+  }
+};
 const commandOf = (file: string) => {
-  const related = testsReaching(repo, packageOf(file) ?? ".", file);
+  const dir = packageOf(file) ?? ".";
+  const related = testsReaching(repo, dir, file);
+  // 単純なスクリプトなら pnpm を介さず直接回す。そうでなければ、これまでの pnpm 経由
+  const direct = directCommand(scriptsOf(dir), related, testFilesOf(repo.files, dir));
+  if (direct) return direct;
   const steps = ["pnpm --silent typecheck", "pnpm --silent test"];
   if (related.length) steps.splice(1, 0, `node --test ${related.join(" ")}`);
   return steps.join(" && ");

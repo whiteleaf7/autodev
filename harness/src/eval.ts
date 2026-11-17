@@ -13,6 +13,8 @@ import { loadScenarios, type Scenario } from "./scenario.ts";
 import { applyEdits, cloneTemplate, createTemplate, removeDir, run } from "./sandbox.ts";
 import { formatSummary, summarize, type Outcome, type Result } from "./score.ts";
 import { TEST_SCOPE_ENV } from "./test-scope.ts";
+import { evalCacheFile } from "./gate-cache.ts";
+import { phasesOf, sameWorkKey } from "./eval-order.ts";
 
 const ROOT = projectRoot();
 const RECALL_TOP = 3;
@@ -30,13 +32,19 @@ function takeBoardSnapshot(): string {
   return file;
 }
 
-async function judge(scenario: Scenario, template: string, gate: string, boardSnapshot: string): Promise<Result> {
+async function judge(
+  scenario: Scenario,
+  template: string,
+  gate: string,
+  boardSnapshot: string,
+  cacheEnv: NodeJS.ProcessEnv,
+): Promise<Result> {
   const dir = cloneTemplate(template);
   // 複製の外に置く（複製の中だと、ゲートが追跡していないファイルとして読む）
   const boardFile = `${dir}.board.sqlite`;
   copyFileSync(boardSnapshot, boardFile);
   // シナリオのコミットで .githooks/post-commit が roborev のレビューを積まないように
-  const env = { DEVBOARD_DB: boardFile, HARNESS_SKIP_REVIEW: "1" };
+  const env = { DEVBOARD_DB: boardFile, HARNESS_SKIP_REVIEW: "1", ...cacheEnv };
   try {
     const problem = applyEdits(dir, scenario.edits);
     if (problem) return { scenario, outcome: "inapplicable", detail: problem };
@@ -96,6 +104,17 @@ async function pool<T, R>(items: T[], size: number, work: (item: T) => Promise<R
   return results;
 }
 
+// 複製のゲートが使う、結果の使い回しの設定。評価の全体で 1 つの記録を共有し、実行をまたいでも残す（複製ごとの .git に書くと捨てられる）。
+// 鍵に基点の中身（複製の元のツリー）を入れるので、リポジトリの中身が変われば、前の実行の記録は使われない。
+// --no-cache と CI では使わない。--record（最終評価の記録）は、実行をまたいで使い回さず、この実行の中だけで共有する
+async function gateCacheEnv(template: string): Promise<NodeJS.ProcessEnv> {
+  if (values["no-cache"] || process.env.CI) return { AUTODEV_NO_CACHE: "1" };
+  const file = values.record ? join(mkdtempSync(join(tmpdir(), "autodev-eval-cache-")), "cache.json") : evalCacheFile(ROOT);
+  if (!file) return { AUTODEV_NO_CACHE: "1" };
+  const { output } = await run("git", ["rev-parse", "HEAD^{tree}"], template);
+  return { AUTODEV_GATE_CACHE_FILE: file, AUTODEV_GATE_CACHE_SALT: output.trim() };
+}
+
 // シナリオが、いまのリポジトリに当てられる形かだけを確かめる（中身は出さない）
 function validate(scenarios: Scenario[], template: string): number {
   let broken = 0;
@@ -118,6 +137,7 @@ const { values } = parseArgs({
     family: { type: "string" },
     record: { type: "boolean", default: false },
     validate: { type: "boolean", default: false },
+    "no-cache": { type: "boolean", default: false },
   },
 });
 if (values.set !== "public" && values.set !== "heldout") throw new Error("--set は public か heldout");
@@ -132,9 +152,18 @@ try {
     process.exitCode = validate(scenarios, template) ? 1 : 0;
   } else {
     const gate = gateCommand();
-    const results = await pool(scenarios, Math.max(2, Math.floor(availableParallelism() / 2)), (s) =>
-      judge(s, template, gate, boardSnapshot),
-    );
+    const cacheEnv = await gateCacheEnv(template);
+    const size = Math.max(2, Math.floor(availableParallelism() / 2));
+    // 同じ中身の検査は、1 件目が通ったあとに回し、ゲートの結果の使い回しを効かせる
+    const results: Result[] = [];
+    for (const indices of phasesOf(scenarios, sameWorkKey)) {
+      const done = await pool(
+        indices.map((i) => scenarios[i]!),
+        size,
+        (s) => judge(s, template, gate, boardSnapshot, cacheEnv),
+      );
+      indices.forEach((index, n) => (results[index] = done[n]!));
+    }
     const summary = summarize(results);
     if (values.set === "public") {
       for (const r of results)

@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { TTL_MS, cacheFile, gateKey, hashFiles, lookup, parseEntries, readEntries, recordPass } from "../src/gate-cache.ts";
+import { TTL_MS, cacheFile, environmentOf, gateKey, hashFiles, lookup, parseEntries, readEntries, recordPass } from "../src/gate-cache.ts";
 
 const files = [
   { path: "a.ts", hash: "1" },
@@ -85,4 +85,21 @@ test("記録の置き場所は、git の共通のディレクトリで、worktre
   const fromMain = cacheFile(main);
   assert.equal(fromMain, join(main, ".git", "autodev-gate-cache.json"));
   assert.equal(cacheFile(linked), fromMain, "linked worktree も、同じ場所");
+});
+
+test("AUTODEV_GATE_CACHE_FILE があれば、記録の場所はそこになる（評価の複製が、実行をまたぐ 1 つの記録を共有するため）", () => {
+  assert.equal(cacheFile("/anywhere", { AUTODEV_GATE_CACHE_FILE: "/shared/cache.json" }), "/shared/cache.json");
+});
+
+test("テストを絞った実行と、基点の中身は、環境の鍵に入る（絞った『通った』を、絞らない実行が使わない）", () => {
+  const before = environmentOf().join("|");
+  process.env.AUTODEV_TEST_SCOPE = "changed";
+  const scoped = environmentOf().join("|");
+  process.env.AUTODEV_GATE_CACHE_SALT = "tree-a";
+  const salted = environmentOf().join("|");
+  delete process.env.AUTODEV_TEST_SCOPE;
+  delete process.env.AUTODEV_GATE_CACHE_SALT;
+  assert.notEqual(scoped, before);
+  assert.notEqual(salted, scoped);
+  assert.equal(environmentOf().join("|"), before);
 });
