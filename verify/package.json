@@ -5,7 +5,7 @@
   "scripts": {
     "screenshot": "node src/screenshot.ts",
     "windows": "swift src/windows.swift",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun check --no-script",
     "test": "node --test --test-timeout=120000 test/*.test.ts"
   },
   "dependencies": {
