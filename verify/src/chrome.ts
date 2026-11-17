@@ -49,7 +49,7 @@ class Cdp {
     });
   }
 
-  static async connect(url: string, timeoutMs: number): Promise<Cdp> {
+  static async connect(url: string, timeoutMs: number, replyTimeoutMs: number): Promise<Cdp> {
     const socket = new WebSocket(url);
     await new Promise((resolve, reject) => {
       const timer = setTimeout(
@@ -76,7 +76,7 @@ class Cdp {
       socket.close();
       throw error;
     });
-    return new Cdp(socket, timeoutMs);
+    return new Cdp(socket, replyTimeoutMs);
   }
 
   send<T>(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<T> {
@@ -157,8 +157,14 @@ export type Browser = {
   page: () => Promise<Page>;
 };
 
-// Chrome を起動して use に渡し、終わったら Chrome とプロファイルを片付ける
-export async function withChrome<T>(timeoutMs: number, use: (browser: Browser) => Promise<T>): Promise<T> {
+// Chrome を起動して use に渡し、終わったら Chrome とプロファイルを片付ける。
+// timeoutMs は起動・接続・返事・要素の出現のそれぞれの上限。返事の上限だけを短くするときは replyTimeoutMs で分ける。
+// 起動は機械の負荷で遅れるので、短い上限を起動にも使うと、返事を待つ前に起動の待ちで落ちる（T-287）
+export async function withChrome<T>(
+  timeoutMs: number,
+  use: (browser: Browser) => Promise<T>,
+  { replyTimeoutMs = timeoutMs }: { replyTimeoutMs?: number } = {},
+): Promise<T> {
   const profile = await mkdtemp(join(tmpdir(), "autodev-chrome-"));
   const chrome = spawn(
     chromePath,
@@ -176,7 +182,7 @@ export async function withChrome<T>(timeoutMs: number, use: (browser: Browser) =
     const { port, browserPath } = parseDevToolsActivePort(
       await waitForFile(join(profile, "DevToolsActivePort"), timeoutMs),
     );
-    const cdp = await Cdp.connect(`ws://127.0.0.1:${port}${browserPath}`, timeoutMs);
+    const cdp = await Cdp.connect(`ws://127.0.0.1:${port}${browserPath}`, timeoutMs, replyTimeoutMs);
     try {
       return await use({
         grant: async (origin, permissions) => {

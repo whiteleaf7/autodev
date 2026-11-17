@@ -3,6 +3,7 @@
 // DevTools の WebSocket は接続を受けるだけで、要求には答えない
 //   FAKE_CHROME_DROP=1: 要求が来たら接続を切る
 //   FAKE_CHROME_IGNORE_SIGTERM=1: SIGTERM を無視する
+//   FAKE_CHROME_START_DELAY_MS=<ms>: 起動の遅い Chrome として、DevToolsActivePort を書くのを遅らせる
 const { createHash } = require("node:crypto");
 const { createServer } = require("node:http");
 const { writeFileSync } = require("node:fs");
@@ -27,5 +28,7 @@ server.on("upgrade", (request, socket) => {
 server.listen(0, "127.0.0.1", () => {
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
-  writeFileSync(join(profile, "DevToolsActivePort"), `${port}\n/devtools/browser/fake\n`);
+  setTimeout(() => {
+    writeFileSync(join(profile, "DevToolsActivePort"), `${port}\n/devtools/browser/fake\n`);
+  }, Number(process.env.FAKE_CHROME_START_DELAY_MS ?? 0));
 });

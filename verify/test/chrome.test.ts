@@ -16,12 +16,18 @@ async function elapsedOf(run: () => Promise<unknown>): Promise<{ ms: number; err
 }
 
 test("CDP が答えないと、メソッド名を添えて上限で失敗にする", async () => {
-  const { ms, error } = await elapsedOf(() =>
-    withChrome(500, (browser) => browser.grant("http://127.0.0.1", ["notifications"])),
-  );
-  assert.match(String(error), /Browser\.grantPermissions に 500ms 経っても返事が来ない/);
-  // 上限（500ms）を、負荷の高い機械でも数十秒は超えないこと。固まって返らないことだけを、はっきり区別できればよい
-  assert.ok(ms < 20_000, `${ms}ms かかった`);
+  // 負荷の高い機械では Chrome の起動が返事の上限より遅れる。起動が遅くても、返事の上限で失敗にすること（T-287）
+  process.env.FAKE_CHROME_START_DELAY_MS = "1000";
+  try {
+    const { ms, error } = await elapsedOf(() =>
+      withChrome(30_000, (browser) => browser.grant("http://127.0.0.1", ["notifications"]), { replyTimeoutMs: 500 }),
+    );
+    assert.match(String(error), /Browser\.grantPermissions に 500ms 経っても返事が来ない/);
+    // 上限（500ms）を、負荷の高い機械でも数十秒は超えないこと。固まって返らないことだけを、はっきり区別できればよい
+    assert.ok(ms < 20_000, `${ms}ms かかった`);
+  } finally {
+    delete process.env.FAKE_CHROME_START_DELAY_MS;
+  }
 });
 
 test("接続が切れたら、返事待ちの要求を上限を待たずに失敗にする", async () => {
