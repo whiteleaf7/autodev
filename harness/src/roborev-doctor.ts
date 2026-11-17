@@ -3,7 +3,6 @@
 
 import { projectRoot } from "./project-root.ts";
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
 import { roborevNotices } from "./roborev.ts";
 
 const ROOT = projectRoot();

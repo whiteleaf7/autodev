@@ -5,7 +5,7 @@
 import { projectRoot } from "./project-root.ts";
 import { readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { directCommand, testFilesOf, type Scripts } from "./mutate-command.ts";
 import { testsReaching } from "./related-tests.ts";
 import { loadRepo, packageDirs } from "./repo.ts";
