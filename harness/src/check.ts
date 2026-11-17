@@ -14,6 +14,7 @@ import { lintDecisionFiles, requireToolNames } from "./devboard-cli.ts";
 import { withoutGitEnv } from "./env.ts";
 import { loadRepo, type Problem, type Repo } from "./repo.ts";
 import { LINKED_MODULES_ENV, snapshotIndex } from "./snapshot.ts";
+import { cacheFile, environmentOf, gateKey, hashFiles, lookup, readEntries, recordPass } from "./gate-cache.ts";
 import { formatTimings, runBuffered, runInherited, type Stage } from "./steps.ts";
 
 const ROOT = projectRoot();
@@ -27,6 +28,9 @@ function notifyIfBehindCommon(repo: Repo): void {
   const message = staleAgainstCommon(repo.read("AGENTS.md"), readCommonRules());
   if (message) console.log(`check: 注意: ${message}`);
 }
+
+// 結果の再利用を使うか。CI と --no-cache と AUTODEV_NO_CACHE では使わない
+const useCache = () => !process.env.CI && !process.env.AUTODEV_NO_CACHE && !process.argv.includes("--no-cache");
 
 // 終了コードを返す。lint と型チェックは、互いに関係しないので並列に回し、出力は lint、型チェックの順に表示する。テストは、そのあと
 async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise<number> {
@@ -59,6 +63,19 @@ async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise
     return finish(1);
   }
 
+  // 同じ中身を、すでに通している（手での check、コミットの pre-commit、land）なら、lint・型チェック・テストは飛ばす。CI は、いつも全部を回す
+  const file = useCache() ? cacheFile(ROOT) : null;
+  const key = file ? await timed("鍵の計算", () => gateKey(hashFiles(dir, repo.files), environmentOf())) : null;
+  const passed = file && key ? lookup(readEntries(file, Date.now()), key) : undefined;
+  if (passed) {
+    console.log(
+      `check: lint・型チェック・テストは、同じ中身が ${new Date(passed.at).toLocaleString("ja-JP")} に通っているので飛ばした（回すときは autodev check --no-cache）`,
+    );
+    console.log("check: すべて通った");
+    notifyIfBehindCommon(repo);
+    return finish(0);
+  }
+
   const options = { cwd: dir, env };
   const [lint, typecheck] = await timed("lint・型チェック（並列）", () =>
     Promise.all([runBuffered("pnpm", ["lint"], options), runBuffered("pnpm", ["typecheck"], options)]),
@@ -69,6 +86,7 @@ async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise
   const test = await timed("テスト", () => runInherited("pnpm", ["test"], options));
   if (test !== 0) return finish(test);
 
+  if (file && key) recordPass(file, key, Date.now());
   console.log("check: すべて通った");
   notifyIfBehindCommon(repo);
   return finish(0);

@@ -23,6 +23,8 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 | lint | 待っていない Promise、`any`、理由の無い空の catch・空の関数、使っていない変数、import の循環（型だけの import も数える）、oxlint の correctness のルール | `pnpm lint`（oxlint と oxlint-tsgolint。設定は `.oxlintrc.json`） |
 | 型と振る舞い | 型エラー、テストの失敗 | `pnpm typecheck`、`pnpm test` |
 
+- **結果の再利用**: lint・型チェック・テストが通ったら、リポジトリの全ファイルの中身（と Node の版・OS・Chrome の有無）のハッシュを、`<git の共通のディレクトリ>/autodev-gate-cache.json` に記録する（worktree の間で共有。7 日で切れる、50 件まで）。同じ中身のゲートは、速い検査だけ回して、これらを飛ばす。手での `check`・コミットの pre-commit・`land` が同じ中身を検査する流れで効く（実測で 28 秒が 2 秒）。1 バイトでも変われば回し直す。CI（環境変数 `CI`）と `autodev check --no-cache`（または `AUTODEV_NO_CACHE`）では使わない。記録ファイルを書き換えて飛ばす抜け道は、`--no-verify` と同じ種類の迂回なので、していない
+- 速さのため、基点（HEAD）のファイルは、テスト・package.json・tsconfig・lint と整形の設定を、`git cat-file --batch` で、最初の 1 回にまとめて読む（1 つずつ `git show` していたころは、速い検査が 10 秒近くかかった）。`autodev check` は、最後に、段ごとの所要時間を 1 行で出す。lint と型チェックは、並列に回す
 - 検査は、いまの姿と基点（HEAD）を比べる。いまの姿は、`autodev check` では作業ツリー、コミットのとき（pre-commit が実行する `autodev check --staged`）は index（コミットされる中身）。テストの件数や、tsconfig と `.oxlintrc.json` の検査項目が基点より減ると止める
 - lint の指摘は直す。意図したものだけ、`// oxlint-disable-next-line <ルール> -- 理由` で行ごとに外す（理由が無いものと、ファイルごとの除外はゲートが止める）
 - タスク・教訓・マイルストーンは git の外の SQLite にある。書き込みが決まり（メモの無い done・cancelled・blocked、AI のタスクの review、子が残る親の done、切れた親・依存・マイルストーン、循環）に新しく反するなら、store が書かずに断る。ボードに書くのは AI だけ（ダッシュボードは読み取り専用。）で、もとからある問題（以前に画面から書かれたものなど）は断らず、`get_overview` の `problems` に出る

@@ -25,7 +25,7 @@ AI 自律開発の実行基盤。コミット前のゲート（`autodev check`�
 | コマンド                 | することと                                                                 |
 | ------------------------ | -------------------------------------------------------------------------- |
 | `autodev init <ディレクトリ>` | 新しいプロジェクトに、設定と文書の雛形を書いて、初期化する（`--name`・`--title`・`--summary`・`--files-only`） |
-| `autodev check`          | ゲート。評価の緩め・規約・記録・ドキュメント・共通の規約の検査のあと、lint・型チェック・テスト。`--staged` で index を検査する |
+| `autodev check`          | ゲート。評価の緩め・規約・記録・ドキュメント・共通の規約の検査のあと、lint・型チェック・テスト。`--staged` で index を検査する。同じ中身を通した記録があれば、lint・型チェック・テストは飛ばす（`--no-cache` で必ず回す） |
 | `autodev hook <名前>`    | git のフックの本体（`pre-commit`・`commit-msg`・`pre-push`）               |
 | `autodev land`           | 作業ブランチを、rebase → ゲート → PR → CI → マージで main に取り込む        |
 | `autodev prune`          | 取り込み済みの作業用 worktree を片付ける                                   |
