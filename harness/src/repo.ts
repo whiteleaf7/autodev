@@ -11,6 +11,10 @@ export type Repo = Tree & { base: Tree | null };
 
 export type Problem = { check: string; file: string; line?: number; message: string };
 
+export function formatProblem({ check, file, line, message }: Problem): string {
+  return `${file}${line ? `:${line}` : ""}: [${check}] ${message}`;
+}
+
 function git(root: string, args: string[]): string | null {
   try {
     return execFileSync("git", args, {
@@ -59,11 +63,12 @@ export function parseCatFileBatch(output: Buffer, specs: string[]): Map<string, 
   return result;
 }
 
-function baseReader(root: string, files: string[]): (path: string) => string | null {
+// rev は "HEAD"（基点）か ""（index。`:<パス>` で読む）
+function gitTreeReader(root: string, files: string[], rev: "HEAD" | ""): (path: string) => string | null {
   let prefetched: Map<string, string | null> | null = null;
   const prefetch = (): Map<string, string | null> => {
     const wanted = files.filter((f) => PREFETCHED_FROM_BASE.test(f));
-    const specs = wanted.map((f) => `HEAD:${f}`);
+    const specs = wanted.map((f) => `${rev}:${f}`);
     try {
       const output = execFileSync("git", ["cat-file", "--batch"], {
         cwd: root,
@@ -72,15 +77,22 @@ function baseReader(root: string, files: string[]): (path: string) => string | n
         stdio: ["pipe", "pipe", "ignore"],
       });
       const read = parseCatFileBatch(output, specs);
-      return new Map(wanted.map((f) => [f, read.get(`HEAD:${f}`) ?? null]));
+      return new Map(wanted.map((f) => [f, read.get(`${rev}:${f}`) ?? null]));
     } catch {
       return new Map();
     }
   };
   return cached((path) => {
     prefetched ??= prefetch();
-    return prefetched.has(path) ? (prefetched.get(path) ?? null) : git(root, ["show", `HEAD:${path}`]);
+    return prefetched.has(path) ? (prefetched.get(path) ?? null) : git(root, ["show", `${rev}:${path}`]);
   });
+}
+
+function headTree(root: string): Tree | null {
+  const listed = git(root, ["ls-tree", "-r", "--name-only", "-z", "HEAD"]);
+  if (listed === null) return null;
+  const files = baseFiles(listed);
+  return { files, read: gitTreeReader(root, files, "HEAD") };
 }
 
 // staged を渡すと、作業ツリーの代わりに、index を写したもの（snapshot.ts の snapshotIndex）をいまの姿として読む
@@ -89,18 +101,20 @@ export function loadRepo(root: string, staged?: { dir: string; files: string[] }
   if (!listed) throw new Error(`${root} は git のリポジトリではない`);
   const dir = staged?.dir ?? root;
   const files = listed.filter((f) => f && existsSync(join(dir, f)));
-  const baseListed = git(root, ["ls-tree", "-r", "--name-only", "-z", "HEAD"]);
   return {
     files,
     read: cached((path) => (existsSync(join(dir, path)) ? readFileSync(join(dir, path), "utf8") : null)),
-    base:
-      baseListed === null
-        ? null
-        : {
-            files: baseFiles(baseListed),
-            read: baseReader(root, baseFiles(baseListed)),
-          },
+    base: headTree(root),
   };
+}
+
+// index（コミットされる中身）を、写さずに git から読む。commit-msg のように、中身の一部だけを基点と比べるときに使う。
+// git が渡す GIT_INDEX_FILE を引き継ぐので、git commit -a やパスを指定したコミットの一時的な index も読める
+export function loadIndexRepo(root: string): Repo {
+  const listed = git(root, ["ls-files", "-z"]);
+  if (listed === null) throw new Error(`${root} は git のリポジトリではない`);
+  const files = baseFiles(listed);
+  return { files, read: gitTreeReader(root, files, ""), base: headTree(root) };
 }
 
 export function memoryRepo(now: Record<string, string>, base?: Record<string, string>): Repo {

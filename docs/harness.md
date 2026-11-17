@@ -34,7 +34,8 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 - タスク・教訓・マイルストーンは git の外の SQLite にある。書き込みが決まり（メモの無い done・cancelled・blocked、AI のタスクの review、子が残る親の done、切れた親・依存・マイルストーン、循環）に新しく反するなら、store が書かずに断る。ボードに書くのは AI だけ（ダッシュボードは読み取り専用。）で、もとからある問題（以前に画面から書かれたものなど）は断らず、`get_overview` の `problems` に出る
 - 振る舞いを変えるタスク（`paths` か、`Task:` の行でそのタスクを指したコミットが変えたファイルに、`docs/` と `.md` 以外があるもの）を AI が `done` にするときは、どれかのメモに「動かした: `コマンド` → 結果」の行が要る。コマンドがテスト・型チェック・lint・ビルドだけなら断る（devboard の `src/rules.ts` の `closingProblems`）。コミットも見るのは、`paths` を書かずに閉じて決まりを抜けられないようにするため。コミットはすべてのブランチから探すので、取り込む前の worktree のコミットも数える。done にする瞬間だけを見るので、この決まりの前に閉じたタスクは `problems` に出ない。書き方と手段は `docs/verification.md` の「done にするときに残すもの」
 - 検査を足す・変えるときは、止める例と通す例を `.autodev/eval/public/` に足し、`harness/test/` にテストを書く。新しい検査は observe で始める（下の「検査の mode」）
-- どうしても通せない正当な変更（対象のコードごとテストを消す、など）は、理由を決定記録に残したうえで `git commit --no-verify` を使う
+- テストの削除（件数の減り）は、手での `autodev check` では止める。コミットのときは、pre-commit のゲートが止めずに commit-msg へ回し、commit-msg が index と基点を比べて、件数の減ったファイルごとに本文の `Removed-test: <ファイル> -- <理由>` の行を求める。行がそろえば通す。不安定で原因を直せないテストを、回し直しや skip で残さずに消せるようにするため（`--no-verify` も決定記録も要らない）。skip とアサーションを抜く変更は、理由があっても止める。対象のコードごと消したテストは、いままでどおり数えない
+- どうしても通せない正当な変更（上の行で通せないもの）は、理由を決定記録に残したうえで `git commit --no-verify` を使う
 
 ### 検査の mode（off / observe / enforce）
 
@@ -45,7 +46,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 - `off`: 見ない
 - autodev の既定は `harness/src/check-modes.ts` の `DEFAULT_MODES`（名前の無い検査は enforce）。プロジェクトは `.autodev/gate.json`（`{"checks": {"<検査の名前>": "observe"}}`。名前は出力の `[...]` の中のもの）で上げ下げできる。ただし基点より下げる変更はゲートが止める（`loosened-gate-mode`）。誤検出で下げたいときは、下げずに、通すべき例を `.autodev/eval/public/` に足して検査を直す。どうしても下げるときは、ほかの緩めと同じく、理由を決定記録に残して `--no-verify`
 - 記録: observe の検査が見つけたものと、enforce の検査が止めたものを、`<git の共通のディレクトリ>/autodev-gate-log.jsonl` に 1 件 1 行で残す（worktree の間で共有。リポジトリには入らない）。`autodev gate-log` が、mode と検査ごとに、違う指摘の数・記録した回数・最後の日時と、回数の多い例を 3 件まで出す。`--check <名前>` で 1 つの検査の指摘をすべて出す。同じ中身を手での check・pre-commit・land が続けて検査するので、回数は同じ指摘が重なる。誤検出かどうかは、違う指摘の方で見る
-- 同じ検査に何度止められても、ゲートは自動では通さない。enforce の検査は誤検出が無いのを確かめてから上げたものなので、通すと、止めるべき変更がそのまま main に入る。直らなければ、検査を緩めず、試したことと止めた指摘をタスクのメモに書いて `blocked` にし、ほかのタスクへ進む。誤検出なら、その例を通す例として `public/` に足して検査を直すタスクにする
+- 同じ検査に何度止められても、ゲートは自動では通さない。enforce の検査は誤検出が無いのを確かめてから上げたものなので、通すと、止めるべき変更がそのまま main に入る。3 回続けて直らなければ、検査を緩めず、試したことと止めた指摘をタスクのメモに書いて `blocked` にし、ほかのタスクへ進む（共通の規約の「作業するとき」）。誤検出なら、その例を通す例として `public/` に足して検査を直すタスクにする
 
 #### 検査を足すとき（observe で始める）
 
@@ -59,7 +60,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 `pnpm install` が `git config core.hooksPath .githooks` と、`git blame` で書式だけのコミットを飛ばす `blame.ignoreRevsFile`（`.git-blame-ignore-revs`）を設定する。
 
 - `pre-commit`: `.gitignore` で無視されているファイルの強制追加を止め、ステージしたファイルを整形してステージし直してから、`autodev check --staged` を実行する。通ったら、ステージした差分に引き金が当たった教訓を出す（止めない。「記録を引き出す」）。`--staged` は index を OS の一時ディレクトリに写し（`git checkout-index`。`git commit <パス>` や `-a` の一時的な index も GIT_INDEX_FILE から読む）、`node_modules` を 1 つずつリンクして、そこでゲートを回す。ステージしていない変更や追跡していないファイルで合否が変わらないようにするため（評価のシナリオ `pub-commits-09`・`pub-commits-10`）。lint・型チェック・テストには GIT_ で始まる環境変数を渡さない（linked worktree では git が GIT_DIR を絶対パスで渡し、テストの中の git が本物のリポジトリを指すため。L-008）
-- `commit-msg`: 件名が Conventional Commits で英語であること、`Task:` の ID がボードにあることを確かめる
+- `commit-msg`: 件名が Conventional Commits で英語であること、`Task:` の ID がボードにあること、テストを減らしたファイルごとに `Removed-test: <ファイル> -- <理由>` の行があることを確かめる（最後のものは `removed-test` の検査の mode に従う）
 - `pre-push`: main への push を止める
 
 ## 返答の差し戻し（Stop フック）

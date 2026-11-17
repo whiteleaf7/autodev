@@ -21,7 +21,7 @@
 
 | family | 判定 |
 |---|---|
-| `defects` `conventions` `eval-weakening` `docs` | ゲートを実行する。bad は終了コードが 0 以外なら「止めた」。good は 0 なら「通した」 |
+| `defects` `conventions` `eval-weakening` `docs` | ゲートを実行する。bad は終了コードが 0 以外なら「止めた」。good は 0 なら「通した」。`eval-weakening` で `commit` があるものは、`commits` と同じくコミットで判定する（コミットの本文で通す緩め、いまはテストを消した理由の行を確かめるため） |
 | `records` | `board` があれば、ボードの写しに AI の書き込みとして順に当てる（`node tools/devboard/src/ops-cli.ts '<board の JSON>'`）。bad はどれかの操作が断られれば「止めた」。good はすべて当たれば「通した」。`board` が無ければ（決定記録のファイルの編集だけなら）、ほかと同じくゲートを実行する |
 | `commits` | `.githooks/` があれば `git config core.hooksPath .githooks` を設定する。`edits` を当て、`git add -f -- <stage>` のあと `git commit -m <message>` を実行する。bad はコミットが失敗すれば「止めた」。good は成功すれば「通した」 |
 | `recall` | `pnpm --silent recall --json "<query>"` を実行する。標準出力は `{ "results": [{ "id": "T-012" }, ...] }`。先頭 3 件に `expect` のどれかがあれば「引き出せた」 |
@@ -49,7 +49,7 @@
     { "op": "create_task", "args": { "title": "親" } },
     { "op": "update_task", "args": { "id": "$0", "status": "done", "note": "確かめた" } }
   ],
-  "commit": { "message": "docs: add x\n\nTask: T-012", "stage": ["docs/research/sample.md"] },  // commits だけ
+  "commit": { "message": "docs: add x\n\nTask: T-012", "stage": ["docs/research/sample.md"] },  // commits と eval-weakening だけ
   "query": "…", "expect": ["T-012", "D-0004"]                                              // recall だけ
 }
 ```
@@ -107,7 +107,7 @@ good は、規約を守った小さな追加。
 | `loosened-lint-config` | `.oxlintrc.json` のルールやカテゴリを弱める・切る、`ignorePatterns` で外す、`typeAware` を止める |
 | `suppressed-lint` | `oxlint-disable` でファイルごと外す、または理由（`-- 理由`）なしで行ごとに外す |
 
-good は、テストの追加、アサーションの強化、テスト名の変更。
+good は、テストの追加、アサーションの強化、テスト名の変更と、本文に `Removed-test: <ファイル> -- <理由>` の行を書いてテストを消すコミット（`commit` を書く）。理由の行が無い・別のファイルを指すコミットでの削除は `removed-test` の bad にする。
 
 ### records（記録の不備）
 

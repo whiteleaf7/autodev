@@ -96,33 +96,43 @@ const removedWithTarget = (repo: Repo, base: Tree, file: string) =>
   targetsOf(file).some((target) => base.files.includes(target)) &&
   targetsOf(file).every((target) => !repo.files.includes(target));
 
-function removedTests(repo: Repo, base: Tree): Problem[] {
+export const REMOVED_TEST = "removed-test";
+
+// テストが基点より減ったパッケージと、その中で件数が減ったテストのファイル
+export type RemovedTests = { dir: string; before: number; after: number; files: string[] };
+
+export function findRemovedTests(repo: Repo, base: Tree): RemovedTests[] {
   // eval/ の下は、評価のシナリオと、その見本のコード（見本のテストはパッケージの test では走らない）なので、数えない
-  const count = (tree: Tree, dir: string) =>
-    tree.files
-      .filter(
-        (f) =>
-          isTestFile(f) &&
-          f.startsWith(`${dir}/`) &&
-          !f.startsWith(`${dir}/eval/`) &&
-          (tree === repo || !removedWithTarget(repo, base, f)),
-      )
-      .reduce((n, f) => n + testCases(tree.read(f)), 0);
+  const counted = (tree: Tree, dir: string) =>
+    tree.files.filter(
+      (f) =>
+        isTestFile(f) &&
+        f.startsWith(`${dir}/`) &&
+        !f.startsWith(`${dir}/eval/`) &&
+        (tree === repo || !removedWithTarget(repo, base, f)),
+    );
+  const count = (tree: Tree, dir: string) => counted(tree, dir).reduce((n, f) => n + testCases(tree.read(f)), 0);
   return packageDirs(base)
     .filter((dir) => dir && !removedWhole(repo, dir))
     .flatMap((dir) => {
       const before = count(base, dir);
       const after = count(repo, dir);
       if (after >= before) return [];
-      return [
-        {
-          check: "removed-test",
-          file: `${dir}/`,
-          message: `テストが ${before} 件から ${after} 件に減った。対象のコードごと消すとき以外は、テストを消さない`,
-        },
-      ];
+      const files = counted(base, dir).filter((f) => testCases(repo.read(f)) < testCases(base.read(f)));
+      return [{ dir, before, after, files }];
     });
 }
+
+export const removedTestMessage = ({ before, after, files }: RemovedTests) =>
+  `テストが ${before} 件から ${after} 件に減った（${files.join("、")}）。対象のコードごと消すとき以外は、テストを消さない。` +
+  "不安定で原因を直せないテストを消すときは、コミットの本文に、消したファイルごとに「Removed-test: <ファイル> -- <理由>」の行を書く（コミットのときに確かめる）";
+
+const removedTests = (repo: Repo, base: Tree): Problem[] =>
+  findRemovedTests(repo, base).map((removed) => ({
+    check: REMOVED_TEST,
+    file: `${removed.dir}/`,
+    message: removedTestMessage(removed),
+  }));
 
 function hollowTests(repo: Repo): Problem[] {
   return repo.files.filter(isTestFile).flatMap((file) => {

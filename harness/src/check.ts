@@ -9,23 +9,19 @@ import { join } from "node:path";
 import { gateModes, splitByMode } from "./check-modes.ts";
 import { checkConventions } from "./checks/conventions.ts";
 import { checkDocs } from "./checks/docs.ts";
-import { checkGate } from "./checks/gate.ts";
+import { checkGate, REMOVED_TEST } from "./checks/gate.ts";
 import { checkRecords } from "./checks/records.ts";
 import { checkRules, readCommonRules, staleAgainstCommon } from "./checks/rules.ts";
 import { lintDecisionFiles, requireToolNames } from "./devboard-cli.ts";
 import { withoutGitEnv } from "./env.ts";
-import { loadRepo, type Problem, type Repo } from "./repo.ts";
+import { formatProblem, loadRepo, type Repo } from "./repo.ts";
 import { LINKED_MODULES_ENV, snapshotIndex } from "./snapshot.ts";
 import { cacheFile, environmentOf, gateKey, hashFiles, lookup, readEntries, recordPass } from "./gate-cache.ts";
-import { appendGateLog, gateLogFile } from "./gate-log.ts";
+import { logFindings } from "./gate-log.ts";
 import { formatTimings, runBuffered, runInherited, type Stage } from "./steps.ts";
 import { testArgs } from "./test-scope.ts";
 
 const ROOT = projectRoot();
-
-export function formatProblem({ check, file, line, message }: Problem): string {
-  return `${file}${line ? `:${line}` : ""}: [${check}] ${message}`;
-}
 
 // プロジェクトの共通の規約の区画が、autodev の最新と違うときだけ、案内を出す（ゲートは止めない）
 function notifyIfBehindCommon(repo: Repo): void {
@@ -36,8 +32,9 @@ function notifyIfBehindCommon(repo: Repo): void {
 // 結果の再利用を使うか。CI と --no-cache と AUTODEV_NO_CACHE では使わない
 const useCache = () => !process.env.CI && !process.env.AUTODEV_NO_CACHE && !process.argv.includes("--no-cache");
 
-// 終了コードを返す。lint と型チェックは、互いに関係しないので並列に回し、出力は lint、型チェックの順に表示する。テストは、そのあと
-async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise<number> {
+// 終了コードを返す。lint と型チェックは、互いに関係しないので並列に回し、出力は lint、型チェックの順に表示する。テストは、そのあと。
+// staged（pre-commit）では、テストの減りを止めずに commit-msg へ回す。消した理由はコミットの本文に書くが、pre-commit からは本文が見えない
+async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv, staged: boolean): Promise<number> {
   const stages: Stage[] = [];
   const timed = async <T>(name: string, work: () => Promise<T> | T): Promise<T> => {
     const started = performance.now();
@@ -57,7 +54,7 @@ async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise
     return splitByMode(
       [
         ...modes.problems,
-        ...checkGate(repo),
+        ...checkGate(repo).filter((problem) => !(staged && problem.check === REMOVED_TEST)),
         ...checkConventions(repo),
         ...checkRecords(repo, (files) => lintDecisionFiles(files, dir)),
         ...checkDocs(repo, requireToolNames(dir)),
@@ -66,14 +63,7 @@ async function runGate(repo: Repo, dir: string, env: NodeJS.ProcessEnv): Promise
       modes.modeOf,
     );
   });
-  const logFile = gateLogFile(ROOT);
-  if (logFile) {
-    const at = Date.now();
-    appendGateLog(logFile, [
-      ...observed.map((problem) => ({ at, mode: "observe" as const, ...problem })),
-      ...problems.map((problem) => ({ at, mode: "enforce" as const, ...problem })),
-    ]);
-  }
+  logFindings(ROOT, { observed, blocking: problems });
   for (const problem of observed) console.log(`check: 記録だけ（observe）: ${formatProblem(problem)}`);
   if (observed.length) console.log(`check: observe の ${observed.length} 件は止めない。記録は autodev gate-log で見る`);
   if (problems.length) {
@@ -126,11 +116,11 @@ if (process.argv.includes("--staged")) {
   let code: number;
   try {
     console.log(`check: コミットされる中身（index）を ${staged.dir} に写して検査する`);
-    code = await runGate(loadRepo(ROOT, staged), staged.dir, { ...childEnv, ...LINKED_MODULES_ENV });
+    code = await runGate(loadRepo(ROOT, staged), staged.dir, { ...childEnv, ...LINKED_MODULES_ENV }, true);
   } finally {
     rmSync(staged.dir, { recursive: true, force: true });
   }
   process.exit(code);
 } else {
-  process.exit(await runGate(loadRepo(ROOT), ROOT, childEnv));
+  process.exit(await runGate(loadRepo(ROOT), ROOT, childEnv, false));
 }

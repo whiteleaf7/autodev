@@ -29,6 +29,17 @@ export function appendGateLog(file: string, entries: GateLogEntry[]): void {
   appendFileSync(file, entries.map((entry) => `${JSON.stringify(entry)}\n`).join(""));
 }
 
+// ゲートと commit-msg が、mode で分けた結果をそのまま残す
+export function logFindings(root: string, { observed, blocking }: { observed: Problem[]; blocking: Problem[] }): void {
+  const file = gateLogFile(root);
+  if (!file) return;
+  const at = Date.now();
+  appendGateLog(file, [
+    ...observed.map((problem) => ({ at, mode: "observe" as const, ...problem })),
+    ...blocking.map((problem) => ({ at, mode: "enforce" as const, ...problem })),
+  ]);
+}
+
 // 読めない行（書きかけ、古い形）は飛ばす
 export function parseGateLog(text: string): GateLogEntry[] {
   return text.split("\n").flatMap((line) => {

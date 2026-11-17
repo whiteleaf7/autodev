@@ -34,8 +34,10 @@ export const Scenario = z
     if (isQuery !== (s.family === "recall")) ctx.addIssue({ code: "custom", message: "query は recall だけに使う" });
     if (isQuery && !(s.query && s.expect))
       ctx.addIssue({ code: "custom", message: "query には query と expect が要る" });
-    if ((s.family === "commits") !== Boolean(s.commit))
-      ctx.addIssue({ code: "custom", message: "commit は commits だけに書く" });
+    // eval-weakening は、コミットの本文で通す緩め（テストを消した理由の行）を確かめるときだけ commit を書く
+    if (s.family === "commits" && !s.commit) ctx.addIssue({ code: "custom", message: "commits には commit が要る" });
+    if (s.commit && s.family !== "commits" && s.family !== "eval-weakening")
+      ctx.addIssue({ code: "custom", message: "commit は commits と eval-weakening だけに書く" });
     if (s.board.length && s.family !== "records")
       ctx.addIssue({ code: "custom", message: "board は records だけに書く" });
     if (!isQuery && s.edits.length === 0 && s.board.length === 0)

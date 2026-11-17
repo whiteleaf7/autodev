@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkGate } from "../src/checks/gate.ts";
+import { checkGate, findRemovedTests } from "../src/checks/gate.ts";
 import { memoryRepo } from "../src/repo.ts";
 
 const checksOf = (now: Record<string, string>, base?: Record<string, string>) =>
@@ -70,6 +70,23 @@ test("テストが基点より減ったら止め、パッケージの中での�
     checksOf({ ...manifest, "tools/x/test/a.test.ts": passing + passing, "tools/x/test/b.test.ts": passing }, base),
     [],
   );
+});
+
+test("テストが減ったパッケージごとに、件数の減ったファイルを挙げる", () => {
+  const manifest = { "tools/x/package.json": `{"scripts":{"typecheck":"tsc --noEmit","test":"node --test"}}` };
+  const base = {
+    ...manifest,
+    "tools/x/test/a.test.ts": passing + passing,
+    "tools/x/test/b.test.ts": passing,
+    "tools/x/test/c.test.ts": passing,
+  };
+  const repo = memoryRepo({ ...manifest, "tools/x/test/a.test.ts": passing, "tools/x/test/c.test.ts": passing }, base);
+  assert.deepEqual(findRemovedTests(repo, repo.base!), [
+    { dir: "tools/x", before: 4, after: 2, files: ["tools/x/test/a.test.ts", "tools/x/test/b.test.ts"] },
+  ]);
+  const [problem] = checkGate(repo);
+  assert.match(problem?.message ?? "", /tools\/x\/test\/a\.test\.ts、tools\/x\/test\/b\.test\.ts/);
+  assert.match(problem?.message ?? "", /Removed-test: <ファイル> -- <理由>/, "通す書き方を案内する");
 });
 
 test("テストが対象のコードごと消えたときは減ったと数えず、コードを残してテストだけ消すのは止める", () => {

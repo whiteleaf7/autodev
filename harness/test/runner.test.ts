@@ -12,7 +12,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkMessage, filesToFormat } from "../src/commit.ts";
+import { checkMessage, filesToFormat, unexplainedRemovedTests } from "../src/commit.ts";
 import { applyEdits } from "../src/sandbox.ts";
 import { Scenario } from "../src/scenario.ts";
 import { summarize, type Outcome } from "../src/score.ts";
@@ -68,6 +68,9 @@ test("シナリオは family と kind の組み合わせを検証する", () => 
   assert.ok(!Scenario.safeParse({ ...base, family: "docs", kind: "bad" }).success, "編集が無い");
   assert.ok(!Scenario.safeParse({ ...base, family: "docs", kind: "query", query: "q", expect: ["T-001"] }).success);
   assert.ok(!Scenario.safeParse({ ...base, family: "commits", kind: "bad", edits }).success, "commit が無い");
+  const commit = { message: "test: drop a", stage: ["a"] };
+  assert.ok(Scenario.safeParse({ ...base, family: "eval-weakening", kind: "good", edits, commit }).success);
+  assert.ok(!Scenario.safeParse({ ...base, family: "docs", kind: "good", edits, commit }).success, "commit は限る");
   const board = [{ op: "create_task", args: { title: "x", status: "wip" } }];
   assert.ok(
     Scenario.safeParse({ ...base, family: "records", kind: "bad", board }).success,
@@ -113,6 +116,28 @@ test("コミットメッセージの決まりを確かめる", () => {
   assert.equal(ok("docs:").length, 1);
   assert.match(ok("docs: 調査メモを追加")[0] ?? "", /英語/);
   assert.match(ok("docs: add note\n\nTask: T-777")[0] ?? "", /T-777/);
+});
+
+test("テストを減らしたファイルごとに、本文の Removed-test: の行に理由を求める", () => {
+  const files = ["tools/x/test/a.test.ts", "tools/x/test/b.test.ts"];
+  const missing = (body: string) => unexplainedRemovedTests(`fix: drop flaky tests\n\n${body}`, files);
+  assert.deepEqual(missing(""), files);
+  assert.deepEqual(
+    missing("Removed-test: tools/x/test/a.test.ts -- 時々 ECONNRESET で落ち、原因が分からない（L-070）"),
+    ["tools/x/test/b.test.ts"],
+  );
+  assert.deepEqual(
+    missing("Removed-test: tools/x/test/a.test.ts -- 原因不明の失敗\nRemoved-test: tools/x/test/b.test.ts -- 同じ"),
+    [],
+  );
+  assert.deepEqual(missing("Removed-test: tools/x/test/a.test.ts --"), files, "理由が空なら数えない");
+  assert.deepEqual(missing("Removed-test: tools/x/test/a.test.ts"), files, "区切りが無ければ数えない");
+  assert.deepEqual(
+    missing("# Removed-test: tools/x/test/a.test.ts -- 理由\n# Removed-test: tools/x/test/b.test.ts -- 理由"),
+    files,
+    "git が消すコメントの行は数えない",
+  );
+  assert.deepEqual(unexplainedRemovedTests('Revert "feat: add a"', files), [], "git が作るメッセージは見ない");
 });
 
 test("整形するのは、すべてステージしたファイルだけ", () => {

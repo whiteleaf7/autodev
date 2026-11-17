@@ -22,9 +22,12 @@ export function pushesToMain(refs: string): boolean {
   return refs.split("\n").some((line) => line.trim().split(/\s+/)[2] === "refs/heads/main");
 }
 
+const bodyLines = (message: string) => message.split("\n").filter((line) => !line.startsWith("#"));
+const subjectOf = (lines: string[]) => lines.find((line) => line.trim()) ?? "";
+
 export function checkMessage(message: string, facts: CommitFacts): string[] {
-  const lines = message.split("\n").filter((line) => !line.startsWith("#"));
-  const subject = lines.find((line) => line.trim()) ?? "";
+  const lines = bodyLines(message);
+  const subject = subjectOf(lines);
   if (GENERATED.test(subject)) return [];
 
   const problems: string[] = [];
@@ -38,4 +41,16 @@ export function checkMessage(message: string, facts: CommitFacts): string[] {
     if (!facts.existingTasks.has(id)) problems.push(`Task: の ${id} はボードに存在しない`);
   }
   return problems;
+}
+
+// 「Removed-test: <ファイル> -- <理由>」。理由の無い行は数えない
+const REMOVED_TEST_LINE = /^Removed-test:\s*(\S+)\s+--\s*\S/i;
+
+// テストの件数が減ったファイルのうち、本文に消した理由の行が無いもの。
+// 不安定で原因を直せないテストは、回し直しや skip で通さずに消す。その理由を、消したコミットに残させる
+export function unexplainedRemovedTests(message: string, files: string[]): string[] {
+  const lines = bodyLines(message);
+  if (GENERATED.test(subjectOf(lines))) return [];
+  const explained = new Set(lines.flatMap((line) => REMOVED_TEST_LINE.exec(line)?.[1] ?? []));
+  return files.filter((file) => !explained.has(file));
 }

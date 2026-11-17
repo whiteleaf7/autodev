@@ -1,14 +1,18 @@
 // git のフック（.githooks/）から呼ばれる。
 //   autodev hook pre-commit              無視されているファイルの混入を確かめ、ステージしたファイルを整形してから、コミットされる中身でゲートを通し、差分に当たった教訓を出す
-//   autodev hook commit-msg <ファイル>   コミットメッセージの決まりを確かめる
+//   autodev hook commit-msg <ファイル>   コミットメッセージの決まりと、テストを減らしたときの理由の行を確かめる
 //   autodev hook pre-push                main への push を止める
 
 import { projectRoot } from "./project-root.ts";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { checkMessage, filesToFormat, pushesToMain } from "./commit.ts";
+import { gateModes, splitByMode } from "./check-modes.ts";
+import { findRemovedTests, REMOVED_TEST, removedTestMessage } from "./checks/gate.ts";
+import { checkMessage, filesToFormat, pushesToMain, unexplainedRemovedTests } from "./commit.ts";
 import { lessonChecklist, readTaskIds } from "./devboard-cli.ts";
+import { logFindings } from "./gate-log.ts";
+import { formatProblem, loadIndexRepo, type Problem } from "./repo.ts";
 
 const ROOT = projectRoot();
 
@@ -80,7 +84,26 @@ function commitMsg(file: string | undefined): void {
   // ボードを読むのは、Task: の行があるときだけ（devboard の呼び出しは重い）
   const existingTasks = new Set(/^Task:/m.test(message) ? readTaskIds(ROOT) : []);
   const problems = checkMessage(message, { existingTasks });
+  problems.push(...unexplainedRemovals(message).map(formatProblem));
   if (problems.length) fail(problems);
+}
+
+// テストの減りは、pre-commit のゲートが本文を見られないので、ここで index と基点（HEAD）を比べて確かめる。
+// 理由の行が無いものだけを、ゲートと同じく検査の mode に従って止める・記録する
+function unexplainedRemovals(message: string): Problem[] {
+  const repo = loadIndexRepo(ROOT);
+  if (!repo.base) return [];
+  const found = findRemovedTests(repo, repo.base).flatMap((removed) => {
+    const missing = unexplainedRemovedTests(message, removed.files);
+    return missing.length
+      ? [{ check: REMOVED_TEST, file: `${removed.dir}/`, message: removedTestMessage({ ...removed, files: missing }) }]
+      : [];
+  });
+  if (!found.length) return [];
+  const { blocking, observed } = splitByMode(found, gateModes(repo).modeOf);
+  logFindings(ROOT, { observed, blocking });
+  for (const problem of observed) console.log(`commit: 記録だけ（observe）: ${formatProblem(problem)}`);
+  return blocking;
 }
 
 function prePush(): void {
