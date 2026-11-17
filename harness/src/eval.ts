@@ -5,13 +5,14 @@
 import { projectRoot } from "./project-root.ts";
 import { execFileSync } from "node:child_process";
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
-import { availableParallelism, tmpdir } from "node:os";
+import { availableParallelism } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { snapshotBoard } from "./devboard-cli.ts";
 import { loadScenarios, type Scenario } from "./scenario.ts";
 import { applyEdits, cloneTemplate, createTemplate, removeDir, run } from "./sandbox.ts";
 import { formatSummary, summarize, type Outcome, type Result } from "./score.ts";
+import { runDir, sweepStaleRunDirs } from "./run-dir.ts";
 import { TEST_SCOPE_ENV } from "./test-scope.ts";
 import { evalCacheFile } from "./gate-cache.ts";
 import { phasesOf, sameWorkKey } from "./eval-order.ts";
@@ -29,7 +30,7 @@ function gateCommand(): string {
 
 // ボードは git の外の SQLite にある（決定記録 0011）。いまのボードの写しを 1 つ取り、シナリオごとにそれを複製して渡す
 function takeBoardSnapshot(): string {
-  const file = join(mkdtempSync(join(tmpdir(), "autodev-eval-board-")), "board.sqlite");
+  const file = join(mkdtempSync(join(runDir(), "board-")), "board.sqlite");
   snapshotBoard(file, ROOT);
   return file;
 }
@@ -115,7 +116,7 @@ async function pool<T, R>(items: T[], size: number, work: (item: T) => Promise<R
 async function gateCacheEnv(template: string): Promise<NodeJS.ProcessEnv> {
   if (values["no-cache"] || process.env.CI) return { AUTODEV_NO_CACHE: "1" };
   const file = values.record
-    ? join(mkdtempSync(join(tmpdir(), "autodev-eval-cache-")), "cache.json")
+    ? join(mkdtempSync(join(runDir(), "cache-")), "cache.json")
     : evalCacheFile(ROOT);
   if (!file) return { AUTODEV_NO_CACHE: "1" };
   const { output } = await run("git", ["rev-parse", "HEAD^{tree}"], template);
@@ -152,6 +153,7 @@ if (values.set !== "public" && values.set !== "heldout") throw new Error("--set 
 const scenarios = loadScenarios(join(ROOT, ".autodev/eval", values.set)).filter(
   (s) => !values.family || s.family === values.family,
 );
+sweepStaleRunDirs();
 const template = createTemplate(ROOT);
 const boardSnapshot = takeBoardSnapshot();
 try {
