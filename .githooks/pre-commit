@@ -3,4 +3,22 @@
 # 有効にするには: git config core.hooksPath .githooks（pnpm install でも設定される）
 # コミット中の git が渡す変数は、テストが一時リポジトリで動かす git を壊すので外す
 unset GIT_INDEX_FILE GIT_DIR GIT_WORK_TREE GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
-pnpm lint && pnpm typecheck && pnpm test
+
+# 3 つは互いに独立なので同時に流し、落ちたものの出力だけを見せる（最初の失敗で止めず、全部の結果を 1 回で知らせる）
+log=$(mktemp -d)
+trap 'rm -rf "$log"' EXIT
+names="lint typecheck test"
+for name in $names; do
+  (pnpm "$name" >"$log/$name.out" 2>&1; echo $? >"$log/$name.status") &
+done
+wait
+
+failed=0
+for name in $names; do
+  if [ "$(cat "$log/$name.status")" != 0 ]; then
+    echo "pre-commit: pnpm $name が失敗した" >&2
+    cat "$log/$name.out" >&2
+    failed=1
+  fi
+done
+exit $failed
