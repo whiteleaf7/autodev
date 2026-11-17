@@ -6,6 +6,7 @@ import { projectRoot } from "./project-root.ts";
 import { readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { join } from "node:path";
+import { sweepStaleRunDirs } from "./run-dir.ts";
 import { directCommand, testFilesOf, type Scripts } from "./mutate-command.ts";
 import { testsReaching } from "./related-tests.ts";
 import { loadRepo, packageDirs } from "./repo.ts";
@@ -102,18 +103,8 @@ const commandOf = (file: string) => {
 const commands = new Map(targets.map((file) => [file, commandOf(file)]));
 
 const mutants = targets.flatMap((file) => mutantsOf(file, repo.read(file) ?? ""));
+sweepStaleRunDirs();
 const template = createTemplate(ROOT);
-const dirs = [template];
-// 途中で止めたときも、一時ディレクトリを残さない
-for (const [signal, code] of [
-  ["SIGINT", 130],
-  ["SIGTERM", 143],
-] as const) {
-  process.on(signal, () => {
-    dirs.forEach(removeDir);
-    process.exit(code);
-  });
-}
 const survivors: Mutant[] = [];
 // 時間切れは止めたものとして数えるが、負荷で遅れただけのこともあるので、分けて見せる
 const timedOut: Mutant[] = [];
@@ -125,7 +116,6 @@ try {
   await Promise.all(
     Array.from({ length: Math.max(2, Math.floor(availableParallelism() / 2)) }, async () => {
       const dir = cloneTemplate(template);
-      dirs.push(dir);
       try {
         while (next < mutants.length) {
           const mutant = mutants[next++]!;

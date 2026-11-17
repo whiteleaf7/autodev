@@ -13,11 +13,11 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { devboardHome } from "./devboard-cli.ts";
 import type { Edit } from "./scenario.ts";
 import { LINKED_MODULES_ENV, linkPackageModules } from "./snapshot.ts";
+import { runDir } from "./run-dir.ts";
 
 const SANDBOX_ENV = { ...process.env, ...LINKED_MODULES_ENV };
 
@@ -57,7 +57,7 @@ function overlayFixture(template: string): void {
 
 export function createTemplate(repoRoot: string): string {
   const root = realpathSync(repoRoot);
-  const template = mkdtempSync(join(tmpdir(), "autodev-harness-"));
+  const template = mkdtempSync(join(runDir(), "template-"));
   const files = git(root, ["ls-files", "-co", "--exclude-standard", "-z"]).split("\0").filter(Boolean);
   for (const file of files) {
     const from = join(root, file);
@@ -84,7 +84,7 @@ export function createTemplate(repoRoot: string): string {
 }
 
 export function cloneTemplate(template: string): string {
-  const dir = mkdtempSync(join(tmpdir(), "autodev-scenario-"));
+  const dir = mkdtempSync(join(runDir(), "scenario-"));
   cpSync(template, dir, { recursive: true, verbatimSymlinks: true });
   return dir;
 }
