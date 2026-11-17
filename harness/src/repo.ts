@@ -1,4 +1,4 @@
-// 検査が見るリポジトリの姿。いまの姿（作業ツリーか、pre-commit では index を写したもの）と、基点（HEAD）の 2 つを持つ。
+// 検査が見るリポジトリの姿。いまの姿（作業ツリーか、pre-commit では index を写したもの）と、基点（ふつうは HEAD）の 2 つを持つ。
 // 検査は副作用を持たない関数にして、テストではメモリ上のリポジトリを渡す。
 
 import { execFileSync } from "node:child_process";
@@ -66,8 +66,8 @@ export function parseCatFileBatch(output: Buffer, specs: string[]): Map<string, 
   return result;
 }
 
-// rev は "HEAD"（基点）か ""（index。`:<パス>` で読む）
-function gitTreeReader(root: string, files: string[], rev: "HEAD" | ""): (path: string) => string | null {
+// rev は基点のコミット（"HEAD" など）か ""（index。`:<パス>` で読む）
+function gitTreeReader(root: string, files: string[], rev: string): (path: string) => string | null {
   let prefetched: Map<string, string | null> | null = null;
   const prefetch = (): Map<string, string | null> => {
     const wanted = files.filter((f) => PREFETCHED_FROM_BASE.test(f));
@@ -93,11 +93,21 @@ function gitTreeReader(root: string, files: string[], rev: "HEAD" | ""): (path: 
   });
 }
 
-function headTree(root: string): Tree | null {
-  const listed = git(root, ["ls-tree", "-r", "--name-only", "-z", "HEAD"]);
+export function treeAt(root: string, rev: string): Tree | null {
+  const listed = git(root, ["ls-tree", "-r", "--name-only", "-z", rev]);
   if (listed === null) return null;
   const files = baseFiles(listed);
-  return { files, read: gitTreeReader(root, files, "HEAD") };
+  return { files, read: gitTreeReader(root, files, rev) };
+}
+
+// rev から HEAD までのコミットのメッセージ（古い順）
+export function messagesSince(root: string, rev: string): string[] {
+  const log = git(root, ["log", "--reverse", "--format=%B%x00", `${rev}..HEAD`]);
+  if (log === null) throw new Error(`${rev}..HEAD のコミットを読めない`);
+  return log
+    .split("\0")
+    .map((message) => message.trim())
+    .filter(Boolean);
 }
 
 // staged を渡すと、作業ツリーの代わりに、index を写したもの（snapshot.ts の snapshotIndex）をいまの姿として読む
@@ -109,7 +119,7 @@ export function loadRepo(root: string, staged?: { dir: string; files: string[] }
   return {
     files,
     read: cached((path) => (existsSync(join(dir, path)) ? readFileSync(join(dir, path), "utf8") : null)),
-    base: headTree(root),
+    base: treeAt(root, "HEAD"),
   };
 }
 
@@ -119,7 +129,7 @@ export function loadIndexRepo(root: string): Repo {
   const listed = git(root, ["ls-files", "-z"]);
   if (listed === null) throw new Error(`${root} は git のリポジトリではない`);
   const files = baseFiles(listed);
-  return { files, read: gitTreeReader(root, files, ""), base: headTree(root) };
+  return { files, read: gitTreeReader(root, files, ""), base: treeAt(root, "HEAD") };
 }
 
 export function memoryRepo(now: Record<string, string>, base?: Record<string, string>): Repo {

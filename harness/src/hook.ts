@@ -8,8 +8,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gateModes, splitByMode } from "./check-modes.ts";
-import { findRemovedTests, REMOVED_TEST, removedTestMessage } from "./checks/gate.ts";
-import { checkMessage, filesToFormat, pushesToMain, unexplainedRemovedTests } from "./commit.ts";
+import { unexplainedRemovals } from "./checks/since-base.ts";
+import { checkMessage, filesToFormat, pushesToMain } from "./commit.ts";
 import { lessonChecklist, readTaskIds } from "./devboard-cli.ts";
 import { logFindings } from "./gate-log.ts";
 import { formatProblem, loadIndexRepo, type Problem } from "./repo.ts";
@@ -61,7 +61,10 @@ function preCommit(): void {
   }
   formatStaged(staged);
   // 作業ツリーではなく、コミットされる中身でゲートを通す。index の場所（GIT_INDEX_FILE）を引き継ぐため、環境変数はそのまま渡す
-  const { status } = spawnSync(process.execPath, [join(import.meta.dirname, "check.ts"), "--staged"], { cwd: ROOT, stdio: "inherit" });
+  const { status } = spawnSync(process.execPath, [join(import.meta.dirname, "check.ts"), "--staged"], {
+    cwd: ROOT,
+    stdio: "inherit",
+  });
   if (status !== 0) process.exit(status ?? 1);
   showLessonChecklist();
 }
@@ -69,11 +72,15 @@ function preCommit(): void {
 // 過去の教訓のうち、このコミットの差分に引き金が当たったものだけを出す（T-264）。覚えていなくても、同じ所を変えたときに目に入るようにする。
 // 止めはしない。ゲートを通ったあとに出すのは、コミットの直前の出力として埋もれないようにするため
 function showLessonChecklist(): void {
-  const { stdout } = spawnSync("git", ["-c", "core.quotepath=false", "diff", "--cached", "--no-color", "--no-ext-diff"], {
-    cwd: ROOT,
-    encoding: "utf8",
-    maxBuffer: 256 * 1024 * 1024,
-  });
+  const { stdout } = spawnSync(
+    "git",
+    ["-c", "core.quotepath=false", "diff", "--cached", "--no-color", "--no-ext-diff"],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      maxBuffer: 256 * 1024 * 1024,
+    },
+  );
   const checklist = stdout ? lessonChecklist(stdout, ROOT) : "";
   if (checklist) console.error(checklist);
 }
@@ -84,21 +91,15 @@ function commitMsg(file: string | undefined): void {
   // ボードを読むのは、Task: の行があるときだけ（devboard の呼び出しは重い）
   const existingTasks = new Set(/^Task:/m.test(message) ? readTaskIds(ROOT) : []);
   const problems = checkMessage(message, { existingTasks });
-  problems.push(...unexplainedRemovals(message).map(formatProblem));
+  problems.push(...unexplainedRemovalsIn(message).map(formatProblem));
   if (problems.length) fail(problems);
 }
 
 // テストの減りは、pre-commit のゲートが本文を見られないので、ここで index と基点（HEAD）を比べて確かめる。
 // 理由の行が無いものだけを、ゲートと同じく検査の mode に従って止める・記録する
-function unexplainedRemovals(message: string): Problem[] {
+function unexplainedRemovalsIn(message: string): Problem[] {
   const repo = loadIndexRepo(ROOT);
-  if (!repo.base) return [];
-  const found = findRemovedTests(repo, repo.base).flatMap((removed) => {
-    const missing = unexplainedRemovedTests(message, removed.files);
-    return missing.length
-      ? [{ check: REMOVED_TEST, file: `${removed.dir}/`, message: removedTestMessage({ ...removed, files: missing }) }]
-      : [];
-  });
+  const found = unexplainedRemovals(repo, [message]);
   if (!found.length) return [];
   const { blocking, observed } = splitByMode(found, gateModes(repo).modeOf);
   logFindings(ROOT, { observed, blocking });

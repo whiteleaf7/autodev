@@ -8,6 +8,7 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readF
 import { availableParallelism } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { ENFORCE_DEFAULTS_ENV } from "./check-modes.ts";
 import { snapshotBoard } from "./devboard-cli.ts";
 import { loadScenarios, type Scenario } from "./scenario.ts";
 import { applyEdits, cloneTemplate, createTemplate, removeDir, run } from "./sandbox.ts";
@@ -46,8 +47,9 @@ async function judge(
   // 複製の外に置く（複製の中だと、ゲートが追跡していないファイルとして読む）
   const boardFile = `${dir}.board.sqlite`;
   copyFileSync(boardSnapshot, boardFile);
-  // 前から roborev のフックを入れているプロジェクトで、シナリオのコミットがレビューを積まないように
-  const env = { DEVBOARD_DB: boardFile, HARNESS_SKIP_REVIEW: "1", ...cacheEnv };
+  // 前から roborev のフックを入れているプロジェクトで、シナリオのコミットがレビューを積まないように。
+  // observe で始めた検査も止める側で判定する（止める例のシナリオで、検査の中身を試すため）
+  const env = { DEVBOARD_DB: boardFile, HARNESS_SKIP_REVIEW: "1", [ENFORCE_DEFAULTS_ENV]: "1", ...cacheEnv };
   try {
     const problem = applyEdits(dir, scenario.edits);
     if (problem) return { scenario, outcome: "inapplicable", detail: problem };
@@ -115,9 +117,7 @@ async function pool<T, R>(items: T[], size: number, work: (item: T) => Promise<R
 // --no-cache と CI では使わない。--record（最終評価の記録）は、実行をまたいで使い回さず、この実行の中だけで共有する
 async function gateCacheEnv(template: string): Promise<NodeJS.ProcessEnv> {
   if (values["no-cache"] || process.env.CI) return { AUTODEV_NO_CACHE: "1" };
-  const file = values.record
-    ? join(mkdtempSync(join(runDir(), "cache-")), "cache.json")
-    : evalCacheFile(ROOT);
+  const file = values.record ? join(mkdtempSync(join(runDir(), "cache-")), "cache.json") : evalCacheFile(ROOT);
   if (!file) return { AUTODEV_NO_CACHE: "1" };
   const { output } = await run("git", ["rev-parse", "HEAD^{tree}"], template);
   return { AUTODEV_GATE_CACHE_FILE: file, AUTODEV_GATE_CACHE_SALT: output.trim() };

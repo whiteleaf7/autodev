@@ -20,6 +20,8 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 | 記録 | 形式の崩れた決定記録（形式の決まりは devboard が持ち、`devboard lint-decisions` に渡して調べる。タスクの決まりは、ボードに書く時点で devboard が断る） | `harness/src/checks/records.ts` |
 | ドキュメント | 存在しないスクリプト・パス・決定記録・MCP ツールへの言及、設定が指す先の欠け。MCP ツールの名前は、`devboard tools` が返す登録済みの名前と照らす | `harness/src/checks/docs.ts` |
 | 共通の規約 | AGENTS.md の共通の規約の区画の中身が、始まりの行に記録したハッシュと合うか（区画が無い AGENTS.md は見ない。CI でも動く）。autodev の最新の共通の規約と区画が違うときは、案内だけを出して止めない。区画は直接直さず、`autodev rules-sync` で更新する | `harness/src/checks/rules.ts` |
+| 自分を判定する仕組み | CI（`.github/workflows/`）からゲートを回す行を消す・`continue-on-error: true` を足す（`loosened-ci`）、`.githooks/` のフックから `autodev hook` の呼び出しを消す（`neutered-hook`）、`.devboard.json` の `hiddenPaths` から基点にあったパスを外す（`unhidden-path`）。変更が、自分を判定する仕組みを同じ変更で外せないようにするため（T-268）。いまは observe | `harness/src/checks/self-guard.ts` |
+| 取り込み先との差 | `--base <rev>`（land は `origin/main`）を渡したとき、HEAD と比べても出ず、`<rev>` と比べると出る緩め（`loosened-since-base`。もとの検査の名前を `[...]` で添える）。コミットのフックを `--no-verify` などで通らずに入った緩めを拾う。テストの減りは、範囲のどれかのコミットの本文の `Removed-test:` の行で通す。いまは observe | `harness/src/checks/since-base.ts` |
 | 検査の mode | `.autodev/gate.json` の崩れ、検査の mode を基点より下げる変更（enforce → observe・off、observe → off。既定が observe の検査を enforce に上げた設定を消すのも含む）。この 2 つの検査の mode は、設定では変えられない | `harness/src/check-modes.ts` |
 | lint | 待っていない Promise、`any`、理由の無い空の catch・空の関数、使っていない変数、import の循環（型だけの import も数える）、oxlint の correctness のルール | `pnpm lint`（oxlint と oxlint-tsgolint。設定は `.oxlintrc.json`） |
 | 型と振る舞い | 型エラー、テストの失敗 | `pnpm typecheck`、`pnpm test` |
@@ -29,6 +31,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 - ゲートが待つ外のプロセス（git・devboard）には、1 つずつ上限の時間（120 秒。`AUTODEV_CHILD_TIMEOUT_MS` で変えられる）を付け、超えたらコマンドの名前を添えて失敗にする。pre-commit のゲートが、lint より前で何も出さずに 30 分止まったことがあり（T-286。原因のプロセスは記録から決められなかった）、止まった場所が出力で分かるようにするため。lint と型チェックは、子が終わったあとも裏に残ったプロセスが出力のパイプを握っていると、待たずに 1 秒で進め、そのことを出力に足す
 - テストを lint・型チェックと同時に回す形は、採らなかった。手元（10 コア）の実測で、合計が 11.4〜11.9 秒 → 10.8〜12.0 秒と変わらない（CPU の取り合いで、テストが 8.6〜9.2 秒 → 9.8〜11.0 秒に延びる）。lint が落ちたときに、すぐ返る利点のほうを残す
 - 検査は、いまの姿と基点（HEAD）を比べる。いまの姿は、`autodev check` では作業ツリー、コミットのとき（pre-commit が実行する `autodev check --staged`）は index（コミットされる中身）。テストの件数や、tsconfig と `.oxlintrc.json` の検査項目が基点より減ると止める
+- `autodev check --base <rev>` は、HEAD に加えて `<rev>` とも比べる。land は、rebase のあとのきれいな作業ツリー（＝HEAD）を検査するので、HEAD と比べるだけでは何も比べられない。そこで `--base origin/main` を渡し、ブランチ全体の変更を取り込み先と比べる（上の表の「取り込み先との差」）
 - 型チェックを `tsc --noEmit` から `bun check` に替えるのは、緩めではない（同じエラーを出す）。ただし package.json に `check` スクリプトがあると、`bun check` は型検査をせずそちらを動かすので、`--no-script` が無いものは止める（`harness/src/checks/gate.ts`）
 - `.oxlintrc.json` に新しく `off` を足すときは、同じ行の後ろか、上の行に `// 理由` を書く（`.oxlintrc.json` は JSONC なのでコメントが書ける。続けて並ぶ `off` には、上の 1 つのコメントがかかる。インラインの除外と同じで、理由が無いと止める）。カテゴリで有効なだけのルールは `rules` に名前が無く、基点で有効だったかを名前では決められないので、理由を求める形にしている。基点で有効だったルールを `off` や `warn` にするのは、理由があっても止める
 - lint の指摘は直す。意図したものだけ、`// oxlint-disable-next-line <ルール> -- 理由` で行ごとに外す（理由が無いものと、ファイルごとの除外はゲートが止める）
@@ -43,7 +46,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 速い検査（上の表の、lint・型と振る舞いより前のもの）は、検査ごとに mode を持つ。lint・型チェック・テストは mode を持たない（lint のルールを試すときは、oxlint の `warn` を使う）。
 
 - `enforce`: 見つけたら止める。設定も既定も無い検査は、これになる
-- `observe`: 止めずに、何を止めたはずかを出力して記録に残す。新しい検査の誤検出を、実際の作業で見るための段
+- `observe`: 止めずに、何を止めたはずかを出力して記録に残す。新しい検査の誤検出を、実際の作業で見るための段。評価（`autodev eval`）は、autodev の既定で observe の検査も止める側で判定する（`AUTODEV_ENFORCE_DEFAULTS`。止める例のシナリオで、検査の中身を試すため）。プロジェクトの `.autodev/gate.json` で下げた mode は、そのまま使う
 - `off`: 見ない
 - autodev の既定は `harness/src/check-modes.ts` の `DEFAULT_MODES`（名前の無い検査は enforce）。プロジェクトは `.autodev/gate.json`（`{"checks": {"<検査の名前>": "observe"}}`。名前は出力の `[...]` の中のもの）で上げ下げできる。ただし基点より下げる変更はゲートが止める（`loosened-gate-mode`）。誤検出で下げたいときは、下げずに、通すべき例を `.autodev/eval/public/` に足して検査を直す。どうしても下げるときは、ほかの緩めと同じく、理由を決定記録に残して `--no-verify`
 - 記録: observe の検査が見つけたものと、enforce の検査が止めたものを、`<git の共通のディレクトリ>/autodev-gate-log.jsonl` に 1 件 1 行で残す（worktree の間で共有。リポジトリには入らない）。`autodev gate-log` が、mode と検査ごとに、違う指摘の数・記録した回数・最後の日時と、回数の多い例を 3 件まで出す。`--check <名前>` で 1 つの検査の指摘をすべて出す。同じ中身を手での check・pre-commit・land が続けて検査するので、回数は同じ指摘が重なる。誤検出かどうかは、違う指摘の方で見る
@@ -101,6 +104,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 - ubuntu で動かす。ボード（SQLite）は無いが、ゲートはボードが無くても通る
 - アクションはコミットの SHA で固定している（リポジトリの設定で必須）。上げるときは、タグの指す SHA を調べて書き換え、コメントの版も直す
 - main は PR からしか進めない。必須のチェックと自動マージは GitHub Free の private では使えないので、`autodev land` が CI の結果を待ってからマージする。main に入ったあとの CI が落ちていたら、ローカルと CI の違いを直すタスクを足す
+- PR の CI は、PR の中の `.github/workflows/` で動くので、PR が自分の CI を変えられる。そのため、取り込みを決めるのは land のローカルのゲート（autodev 自身を `--base origin/main` で回す）にし、CI は 2 段目とする。CI からゲートの行を消す変更は、`loosened-ci` が見る（T-268）
 - リポジトリの設定（マージは rebase だけ、Actions の権限と SHA の固定の必須化）は。main のルールセットは、GitHub Free の private では使えないので、main への push は pre-push フックで止める
 
 ## 取り込み（`autodev land`）
@@ -110,7 +114,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 1. git の共通ディレクトリの `autodev-land.lock` を取る。ほかの取り込み中は待つ（持ち主のプロセスが死んでいれば外す）
 2. `origin/main` を取ってきて rebase する。衝突したら rebase を取り消し、衝突したファイルを示して止まる
 3. `pnpm install --frozen-lockfile --offline` で依存を入れ直す。rebase で main から新しい workspace のパッケージや依存が入っても、着手のときの `node_modules` のままゲートが落ちないようにするため。ストアに無い依存が増えたときは止まるので、`pnpm install --frozen-lockfile` を実行してからやり直す
-4. rebase した結果で `autodev check` を通す。フックの設定に頼らないので、`core.hooksPath` が書き換えられていても効く
+4. rebase した結果で、autodev のゲート（`check.ts`）を `--base origin/main` で直接回す。プロジェクトの `check` スクリプトは通さないので、取り込む変更が同じ変更で `check` を書き換えても、ゲートは外れない。フックの設定にも頼らないので、`core.hooksPath` が書き換えられていても効く。取り込み先と比べるので、コミットのフックを通らずに入った緩めも見る（T-268）
 5. ブランチを `--force-with-lease` で push し、draft の PR を作る（同じブランチの開いた PR があれば使い回す）。本文は `## Summary` とコミットの件名の一覧、`Task:` の行
 6. CI（`gh pr checks`）が終わるのを待つ。落ちたら、マージせずに止まる
 7. PR を ready にし、CI を通したコミットのままのときだけ（`--match-head-commit`）rebase でマージする。マージしたブランチは GitHub が消す

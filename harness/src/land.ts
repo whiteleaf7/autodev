@@ -1,5 +1,5 @@
 // ブランチを、PR を通して main に 1 件ずつ取り込む（決定記録 0010、0015）。main 以外のブランチの上で `pnpm land` を実行する。
-// 取り込みのロックを取り、origin/main に rebase して依存を入れ直し、その結果でゲート（pnpm check）を通し、ブランチを push して draft の PR を作る。
+// 取り込みのロックを取り、origin/main に rebase して依存を入れ直し、その結果でゲート（autodev check --base origin/main）を通し、ブランチを push して draft の PR を作る。
 // CI が通ったら PR を ready にして rebase でマージし、ローカルの main を origin/main に進める。
 // main は、ローカルのゲートと CI を通った状態でしか進まない。フックの設定に頼らずゲートを通すので、core.hooksPath が書き換えられても効く。
 
@@ -113,11 +113,17 @@ function install(top: string): void {
     );
 }
 
+// プロジェクトの check スクリプトではなく、autodev のゲートを直接回す。取り込む変更が、同じ変更で check スクリプトを書き換えて、ゲートを外せないように。
+// rebase のあとの作業ツリーは HEAD と同じで、HEAD と比べる検査は何も比べないので、取り込み先（origin/main）と比べる（T-268）
 function gate(top: string): void {
-  const { status } = spawnSync("pnpm", ["check"], { cwd: top, stdio: "inherit", env: withoutGitEnv(process.env) });
+  const { status } = spawnSync(process.execPath, [join(import.meta.dirname, "check.ts"), "--base", UPSTREAM], {
+    cwd: top,
+    stdio: "inherit",
+    env: withoutGitEnv(process.env),
+  });
   if (status !== 0)
     throw new LandError(
-      "ゲート（pnpm check）が通らなかった。取り込みはしていない。直してコミットし、もう一度 pnpm land を実行する",
+      `ゲート（autodev check --base ${UPSTREAM}）が通らなかった。取り込みはしていない。直してコミットし、もう一度 pnpm land を実行する`,
     );
 }
 

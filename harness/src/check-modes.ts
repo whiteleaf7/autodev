@@ -15,7 +15,19 @@ type Checks = z.infer<typeof GateConfig>["checks"];
 export const GATE_CONFIG_FILE = ".autodev/gate.json";
 
 // autodev が既定を enforce 以外にしている検査。新しい検査はここに observe で足し、enforce にするときに消す
-export const DEFAULT_MODES: Defaults = {};
+export const DEFAULT_MODES: Defaults = {
+  // T-268: 変更が、自分を判定する仕組みを外す・コミットのゲートを通らずに入る
+  "loosened-since-base": "observe",
+  "loosened-ci": "observe",
+  "neutered-hook": "observe",
+  "unhidden-path": "observe",
+};
+
+// 評価（autodev eval）は、observe で始めた検査も止める側で判定する。止める例・通す例のシナリオで、検査の中身を試すため
+export const ENFORCE_DEFAULTS_ENV = "AUTODEV_ENFORCE_DEFAULTS";
+
+export const defaultModes = (env: NodeJS.ProcessEnv = process.env): Defaults =>
+  env[ENFORCE_DEFAULTS_ENV] ? {} : DEFAULT_MODES;
 
 // mode の設定そのものを守る検査は、設定では変えられない
 const FIXED_CHECKS = new Set(["loosened-gate-mode", "broken-gate-config"]);
@@ -35,7 +47,8 @@ function parseConfig(text: string | null): Parsed {
   const parsed = GateConfig.safeParse(json);
   if (!parsed.success) return { checks: {}, error: z.prettifyError(parsed.error) };
   const fixed = Object.keys(parsed.data.checks).filter((check) => FIXED_CHECKS.has(check));
-  if (fixed.length) return { checks: {}, error: `${fixed.join("・")} の mode は変えられない（mode の設定を守る検査のため）` };
+  if (fixed.length)
+    return { checks: {}, error: `${fixed.join("・")} の mode は変えられない（mode の設定を守る検査のため）` };
   return { checks: parsed.data.checks, error: null };
 }
 
@@ -48,7 +61,7 @@ export type GateModes = { modeOf: (check: string) => Mode; problems: Problem[] }
 
 // いまの姿の設定で mode を決め、設定の崩れと、基点より mode を下げた検査を問題として返す。
 // 崩れた設定は無いものとして扱う（既定より緩むことはない）
-export function gateModes(repo: Repo, defaults: Defaults = DEFAULT_MODES): GateModes {
+export function gateModes(repo: Repo, defaults: Defaults = defaultModes()): GateModes {
   const now = configOf(repo);
   const base = configOf(repo.base);
   const problems: Problem[] = [];
