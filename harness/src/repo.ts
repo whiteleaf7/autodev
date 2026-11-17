@@ -4,6 +4,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { scan } from "./source.ts";
 
 export type Tree = { files: string[]; read(path: string): string | null };
 export type Repo = Tree & { base: Tree | null };
@@ -130,3 +131,7 @@ export function parseJson(text: string | null): unknown {
     return null;
   }
 }
+
+// JSONC（コメントと末尾のカンマを許す JSON）。tsconfig と .oxlintrc.json がこの形
+export const parseJsonc = (text: string | null): unknown =>
+  text === null ? null : parseJson(scan(text).withStrings.replace(/,(\s*[}\]])/g, "$1"));

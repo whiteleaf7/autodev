@@ -316,6 +316,13 @@ test("lint の設定で新しく off にするルールは、同じ行か直前�
   const scoped = `,\n    "typescript/no-explicit-any": "off"`;
   assert.deepEqual(checksOf({ [file]: lines(scoped) }, base), ["loosened-lint-config"], "名前に / がある");
   assert.deepEqual(checksOf({ [file]: lines(`${scoped} // 理由`) }, base), []);
+  const block = `,\n    // 生成物で使う\n    "no-debugger": "off",\n    "no-empty": "off"`;
+  assert.deepEqual(checksOf({ [file]: lines(block) }, base), [], "続けて並ぶ off に、上の 1 つのコメントがかかる");
+  assert.deepEqual(
+    checksOf({ [file]: lines(`${block},\n    "no-eval": "error",\n    "no-var": "off"`) }, base),
+    ["loosened-lint-config"],
+    "間に別の行が入ったら、そこで切れる",
+  );
   // 基点にあった off は、そのまま通す
   assert.deepEqual(checksOf({ [file]: lines(off) }, { [file]: lines(off) }), []);
 });

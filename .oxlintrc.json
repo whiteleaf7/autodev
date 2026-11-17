@@ -39,8 +39,8 @@
     "typescript/no-unsafe-return": "error",
     "typescript/strict-void-return": "error",
     "no-promise-executor-return": "error",
-    "typescript/no-unsafe-type-assertion": "off",
-    "unicorn/consistent-function-scoping": "off"
+    "typescript/no-unsafe-type-assertion": "off", // JSON.parse などの as が 29 件。直すには zod での検証が要るので、別の作業にする
+    "unicorn/consistent-function-scoping": "off" // テストの中の関数を外に出すと、読みにくくなる
   },
   "overrides": [
     {
@@ -57,6 +57,7 @@
         "verify/register.js"
       ],
       "rules": {
+        // node:module の registerHooks などが @types/node に無く、型が error になる（型を付けられない素の JS）
         "typescript/no-unsafe-assignment": "off",
         "typescript/no-unsafe-call": "off",
         "typescript/no-unsafe-member-access": "off",

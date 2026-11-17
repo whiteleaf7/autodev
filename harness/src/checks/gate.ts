@@ -1,7 +1,7 @@
 // 評価を緩める変更を見つける。ここが緩むと、ゲートを通ったことの意味がなくなる。
 // 基点（HEAD）と比べて、テストや検査が減っていないかも見る。
 
-import { isTestFile, packageDirs, parseJson, type Problem, type Repo, type Tree } from "../repo.ts";
+import { isTestFile, packageDirs, parseJson, parseJsonc, type Problem, type Repo, type Tree } from "../repo.ts";
 import { lineOf, matchingClose, scan } from "../source.ts";
 
 const SKIP_CALL = /\b(test|it|describe|suite|t|ctx|context)\s*\.\s*(skip|only|todo)\b/g;
@@ -145,10 +145,6 @@ function hollowTests(repo: Repo): Problem[] {
 
 type TsConfig = { compilerOptions: Record<string, unknown>; include: string[]; exclude: string[] };
 
-// tsconfig と .oxlintrc.json は、コメントと末尾のカンマを許す
-const parseJsonc = (text: string | null) =>
-  text === null ? null : parseJson(scan(text).withStrings.replace(/,(\s*[}\]])/g, "$1"));
-
 function parseTsConfig(text: string | null): TsConfig | null {
   const json = parseJsonc(text);
   if (typeof json !== "object" || json === null) return null;
@@ -274,14 +270,22 @@ function parseLintConfig(text: string | null): LintConfig | null {
 const labelOf = ({ scope, name }: LintLevel) =>
   scope === "categories" ? `カテゴリ ${name}` : scope === "rules" ? `ルール ${name}` : `${scope} のルール ${name}`;
 
-// off にした行（同じ行の後ろか、直前の行）に、// で理由が書いてあるか。インラインの oxlint-disable に理由を求めるのと同じ
+// off にした行に、// で理由が書いてあるか。インラインの oxlint-disable に理由を求めるのと同じ
 function hasReason(text: string, name: string): boolean {
   const lines = text.split("\n");
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
   const key = new RegExp(String.raw`"${escaped}"\s*:\s*"(off|allow)"`);
   const offLines = lines.flatMap((line, i) => (key.test(line) ? [i] : []));
-  const commented = (i: number) =>
-    /\/\/\s*\S/.test(lines[i]?.slice(lines[i].search(key)) ?? "") || /^\s*\/\/\s*\S/.test(lines[i - 1] ?? "");
+  const anyOff = /"[^"]+"\s*:\s*"(off|allow)"/;
+  // 同じ行の後ろか、上のコメントだけの行。続けて off が並ぶときは、その上の 1 つのコメントが全部にかかる
+  const commented = (i: number): boolean => {
+    if (/\/\/\s*\S/.test(lines[i]?.slice(lines[i].search(key)) ?? "")) return true;
+    for (let j = i - 1; j >= 0; j--) {
+      if (/^\s*\/\/\s*\S/.test(lines[j] ?? "")) return true;
+      if (!anyOff.test(lines[j] ?? "")) return false;
+    }
+    return false;
+  };
   return offLines.length > 0 && offLines.every(commented);
 }
 
@@ -308,7 +312,7 @@ function lintConfig(repo: Repo): Problem[] {
     if (entry.level > 0 || levelIn(before.levels, entry.scope, entry.name) !== undefined) continue;
     const isOverride = entry.scope !== "categories" && entry.scope !== "rules";
     if ((!isOverride || !addedNow(entry.name)) && !hasReason(repo.read(LINT_CONFIG) ?? "", entry.name))
-      add(`${labelOf(entry)} を off にしている（意図して外すなら、同じ行か直前の行に // で理由を書く）`);
+      add(`${labelOf(entry)} を off にしている（意図して外すなら、同じ行の後ろか、上の行に // で理由を書く）`);
   }
   for (const pattern of now.ignores)
     if (!before.ignores.includes(pattern)) add(`${pattern} を lint の対象から外している（ignorePatterns）`);

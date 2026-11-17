@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { parseJsonc } from "../src/repo.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const RULE = /\[\w+\/([\w-]+)\(([\w-]+)\)\]$/;
@@ -14,7 +15,7 @@ const RULE = /\[\w+\/([\w-]+)\(([\w-]+)\)\]$/;
 // - tsconfig の無い場所で typeAware のまま動かすと、1 回に 20 秒ほどかかる。ここで確かめるルールは型の情報を使わないので外す
 function lint(files: Record<string, string>): Record<string, string[]> {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "autodev-lint-")));
-  const config = JSON.parse(readFileSync(join(ROOT, ".oxlintrc.json"), "utf8")) as Record<string, unknown>;
+  const config = parseJsonc(readFileSync(join(ROOT, ".oxlintrc.json"), "utf8")) as Record<string, unknown>;
   writeFileSync(
     join(dir, ".oxlintrc.json"),
     JSON.stringify({ ...config, $schema: undefined, options: { typeAware: false } }),
