@@ -70,6 +70,20 @@ test("テストが基点より減ったら止め、パッケージの中での�
   );
 });
 
+test("テストが対象のコードごと消えたときは減ったと数えず、コードを残してテストだけ消すのは止める", () => {
+  const manifest = { "tools/x/package.json": `{"scripts":{"typecheck":"tsc --noEmit","test":"node --test"}}` };
+  const base = {
+    ...manifest,
+    "tools/x/src/a.ts": "export const a = 1;\n",
+    "tools/x/src/b.ts": "export const b = 1;\n",
+    "tools/x/test/a.test.ts": passing,
+    "tools/x/test/b.test.ts": passing,
+  };
+  const kept = { ...manifest, "tools/x/src/a.ts": "export const a = 1;\n", "tools/x/test/a.test.ts": passing };
+  assert.deepEqual(checksOf(kept, base), [], "b のコードとテストを一緒に消した");
+  assert.deepEqual(checksOf({ ...kept, "tools/x/src/b.ts": "export const b = 1;\n" }, base), ["removed-test"]);
+});
+
 test("アサーションの無いテストを見つける", () => {
   const file = "tools/x/test/a.test.ts";
   assert.deepEqual(checksOf({ [file]: `test("a", () => {\n  run();\n});\n` }), ["hollow-test"]);

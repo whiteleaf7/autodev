@@ -76,11 +76,30 @@ function skippedTests(repo: Repo): Problem[] {
 // package.json だけ消して中身を残すような消し方は、ディレクトリにファイルが残るので止める
 const removedWhole = (repo: Repo, dir: string) => dir !== "" && !repo.files.some((f) => f.startsWith(`${dir}/`));
 
+// `test/name.test.ts` や `name.test.ts` が確かめる、`src/name.ts` や `name.ts`
+const targetsOf = (testFile: string) => {
+  const name = testFile.replace(/\.test\.[^./]+$/, "");
+  const sibling = name.replace(/\/test\/([^/]+)$/, "/src/$1");
+  return [name, sibling].flatMap((base) => [".ts", ".tsx", ".mts", ".js", ".mjs"].map((ext) => base + ext));
+};
+
+// テストが対象のコードごと無くなった（コードが別のリポジトリへ移った）ときは、減ったと数えない
+const removedWithTarget = (repo: Repo, base: Tree, file: string) =>
+  !repo.files.includes(file) &&
+  targetsOf(file).some((target) => base.files.includes(target)) &&
+  targetsOf(file).every((target) => !repo.files.includes(target));
+
 function removedTests(repo: Repo, base: Tree): Problem[] {
   // eval/ の下は、評価のシナリオと、その見本のコード（見本のテストはパッケージの test では走らない）なので、数えない
   const count = (tree: Tree, dir: string) =>
     tree.files
-      .filter((f) => isTestFile(f) && f.startsWith(`${dir}/`) && !f.startsWith(`${dir}/eval/`))
+      .filter(
+        (f) =>
+          isTestFile(f) &&
+          f.startsWith(`${dir}/`) &&
+          !f.startsWith(`${dir}/eval/`) &&
+          (tree === repo || !removedWithTarget(repo, base, f)),
+      )
       .reduce((n, f) => n + testCases(tree.read(f)), 0);
   return packageDirs(base)
     .filter((dir) => dir && !removedWhole(repo, dir))
