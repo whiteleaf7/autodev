@@ -17,9 +17,16 @@ test("指定が無い・git の履歴が無い・ルートの test が別の形�
   assert.deepEqual(testArgs(scoped, undefined, true), ["test"]);
 });
 
-test("基点を渡すと、その基点からの差分が届くパッケージに絞る", () => {
+test("基点を渡すと、その基点からの差分が届くパッケージに絞り、ルートのパッケージは外す", () => {
   const changed = ["apps/web/src/main.tsx", "docs/harness.md", "README.md"];
-  assert.deepEqual(testArgs(pullRequest, "pnpm -r test", true, changed), ["-r", "--filter", "...[HEAD^1]", "test"]);
+  assert.deepEqual(testArgs(pullRequest, "pnpm -r test", true, changed), [
+    "-r",
+    "--filter",
+    "...[HEAD^1]",
+    "--filter",
+    "!{.}",
+    "test",
+  ]);
 });
 
 test("ルートのファイルか CI の定義が変わっていれば、どのパッケージにも効きうるので、絞らない", () => {

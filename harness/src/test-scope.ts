@@ -23,5 +23,9 @@ export function testArgs(
 ): string[] {
   const scoped = env[TEST_SCOPE_ENV] === "changed" && hasGit && rootTestScript?.trim() === "pnpm -r test";
   if (!scoped || changedFromBase === null || changedFromBase.some(reachesEveryPackage)) return ["test"];
-  return ["-r", "--filter", `...[${env[TEST_BASE_ENV] || "HEAD"}]`, "test"];
+  const base = env[TEST_BASE_ENV];
+  if (!base) return ["-r", "--filter", "...[HEAD]", "test"];
+  // ルートのパッケージは、docs など、どのパッケージにも入らないファイルが変わっただけで「触った」に数えられ、その test（pnpm -r test）が全部を回してしまう。
+  // テストに効くルートのファイルは、上で全部を回す側に分けてあるので、ここでは外す
+  return ["-r", "--filter", `...[${base}]`, "--filter", "!{.}", "test"];
 }
