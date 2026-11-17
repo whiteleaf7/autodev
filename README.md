@@ -28,7 +28,7 @@ AI 自律開発の実行基盤。コミット前のゲート（`autodev check`�
 | `autodev check`          | ゲート。評価の緩め・規約・記録・ドキュメント・共通の規約の検査のあと、lint・型チェック・テスト。`--staged` で index を検査する。`--base <rev>` で、取り込み先のブランチとも比べる（land が使う）。同じ中身を通した記録があれば、lint・型チェック・テストは飛ばす（`--no-cache` で必ず回す） |
 | `autodev gate-log`       | 速い検査の記録。observe の検査が止めずに記録したものと、enforce の検査が止めたものの、検査ごとの件数と例（`--check <名前>` で 1 つの検査のすべての指摘） |
 | `autodev hook <名前>`    | git のフックの本体（`pre-commit`・`commit-msg`・`pre-push`）               |
-| `autodev land`           | 作業ブランチを、rebase → ゲート → PR → CI → マージで main に取り込む        |
+| `autodev land`           | 作業ブランチを、roborev の High の指摘の確認 → rebase → ゲート → PR → CI → マージで main に取り込む |
 | `autodev prune`          | 取り込み済みの作業用 worktree を片付ける                                   |
 | `autodev eval`           | ハーネスの評価（`--set public` か `heldout`、`--family`、`--validate`、`--record`） |
 | `autodev mutate`         | 変異テスト                                                                 |

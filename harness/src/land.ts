@@ -1,4 +1,5 @@
 // ブランチを、PR を通して main に 1 件ずつ取り込む（決定記録 0010、0015）。main 以外のブランチの上で `pnpm land` を実行する。
+// 先に、ブランチのコミットに付いた roborev の開いた指摘を見せ、High が開いたままなら止める。
 // 取り込みのロックを取り、origin/main に rebase して依存を入れ直し、その結果でゲート（autodev check --base origin/main）を通し、ブランチを push して draft の PR を作る。
 // CI が通ったら PR を ready にして rebase でマージし、ローカルの main を origin/main に進める。
 // main は、ローカルのゲートと CI を通った状態でしか進まない。フックの設定に頼らずゲートを通すので、core.hooksPath が書き換えられても効く。
@@ -7,8 +8,20 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { z } from "zod";
 import { withoutGitEnv } from "./env.ts";
 import { ciVerdict, type Check, type Commit, pullRequestBody } from "./pull-request.ts";
+import {
+  type BranchCommit,
+  type CoveringJob,
+  isUnfinished,
+  type JobFindings,
+  needsFindings,
+  ReviewJob,
+  ReviewShow,
+  relevantJobs,
+  reviewReport,
+} from "./review-findings.ts";
 import { parseWorktrees } from "./worktrees.ts";
 
 const REMOTE = "origin";
@@ -18,6 +31,9 @@ const WAIT_MS = 15 * 60_000;
 const POLL_MS = 500;
 const CI_WAIT_MS = 20 * 60_000;
 const CI_POLL_MS = 10_000;
+// レビューは 1 件あたり平均 19 秒（nagaya の 151 件）。コミットの直後の land でも、終わるのを待ってから指摘を読む
+const REVIEW_WAIT_MS = 5 * 60_000;
+const REVIEW_POLL_MS = 5_000;
 
 class LandError extends Error {}
 
@@ -206,6 +222,89 @@ function syncMain(top: string, branch: string): void {
   if (inMainWorktree) gitOut(top, ["branch", "-q", "-d", branch]);
 }
 
+function roborev(top: string, args: string[]): { ok: boolean; out: string } {
+  const { status, stdout, stderr, error } = spawnSync("roborev", args, {
+    cwd: top,
+    encoding: "utf8",
+    env: { ...process.env, ROBOREV_TELEMETRY_ENABLED: "0" },
+  });
+  if (error) return { ok: false, out: error.message };
+  return { ok: status === 0, out: status === 0 ? stdout : `${stdout ?? ""}${stderr ?? ""}`.trim() };
+}
+
+function parseOut<T>(schema: z.ZodType<T>, out: string): T | null {
+  try {
+    const parsed = schema.safeParse(JSON.parse(out));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+// 範囲の job（A..B）は、範囲のコミットすべてをレビューしている
+function coveringJobs(top: string, jobs: ReviewJob[]): CoveringJob[] {
+  return jobs.map((job) => {
+    if (!job.git_ref.includes("..")) return { ...job, covers: [job.git_ref] };
+    const range = git(top, ["rev-list", job.git_ref]);
+    return { ...job, covers: range.ok ? range.out.split("\n").filter(Boolean) : [job.git_ref.split("..").pop() ?? ""] };
+  });
+}
+
+function branchJobs(top: string, branch: string): CoveringJob[] | string {
+  const list = roborev(top, ["job", "list", "--json", "--branch", branch, "--limit", "200"]);
+  if (!list.ok) return `roborev job list が失敗した: ${list.out}`;
+  const jobs = parseOut(z.array(ReviewJob), list.out);
+  if (!jobs)
+    return "roborev job list --json の出力の形が変わった。autodev の harness/src/review-findings.ts の ReviewJob を合わせる";
+  return coveringJobs(top, jobs);
+}
+
+function findingsOf(top: string, jobs: CoveringJob[]): JobFindings {
+  return new Map(
+    jobs.filter(needsFindings).map((job) => {
+      const show = roborev(top, ["job", "show", "--job", String(job.id), "--json"]);
+      const findings = show.ok ? parseOut(ReviewShow, show.out)?.structured_output?.findings : null;
+      return [job.id, findings ?? null] as const;
+    }),
+  );
+}
+
+// 取り込むコミットに付いた roborev の開いた指摘を見せ、High が開いたままなら止める（T-290）。
+// rebase で SHA が変わる前に、レビューされたコミットのままで読む。ロックの外で読むので、ほかの取り込みを待たせない
+async function checkReviews(top: string, branch: string): Promise<void> {
+  if (process.env.HARNESS_SKIP_REVIEW) return;
+  if (!roborev(top, ["version"]).ok) {
+    console.error("land: roborev が無いので、レビューの指摘は見ていない");
+    return;
+  }
+  const commits: BranchCommit[] = gitOut(top, ["log", "--format=%H%x1f%s", `${UPSTREAM}..${branch}`])
+    .split("\n")
+    .filter(Boolean)
+    .map((entry) => {
+      const [sha = "", subject = ""] = entry.split("\x1f");
+      return { sha, subject };
+    });
+  const mine = (jobs: CoveringJob[]) => relevantJobs(commits, jobs);
+
+  const deadline = Date.now() + REVIEW_WAIT_MS;
+  let jobs = branchJobs(top, branch);
+  let announced = false;
+  while (typeof jobs !== "string" && mine(jobs).some(isUnfinished) && Date.now() < deadline) {
+    if (!announced) console.error("land: roborev のレビューが終わるのを待っている");
+    announced = true;
+    await sleep(REVIEW_POLL_MS);
+    jobs = branchJobs(top, branch);
+  }
+  // 記録が読めないのは roborev の側の問題で、取り込む変更の問題ではないので、知らせて進める
+  if (typeof jobs === "string") {
+    console.error(`land: ${jobs}。レビューの指摘は見ていない`);
+    return;
+  }
+  const report = reviewReport(commits, jobs, findingsOf(top, mine(jobs)));
+  for (const line of report.lines) console.error(`land: ${line}`);
+  if (report.blocked) throw new LandError("roborev の High の指摘が開いたまま。取り込みはしていない");
+}
+
 async function land(): Promise<void> {
   const top = realpathSync(gitOut(process.cwd(), ["rev-parse", "--show-toplevel"]));
   const branch = gitOut(top, ["branch", "--show-current"]);
@@ -215,6 +314,9 @@ async function land(): Promise<void> {
   if (gitOut(top, ["status", "--porcelain"]))
     throw new LandError("コミットしていない変更か、追跡していないファイルがある。コミットするか片付けてから実行する");
   if (!git(top, ["remote", "get-url", REMOTE]).ok) throw new LandError(`リモート ${REMOTE} が無い`);
+
+  gitOut(top, ["fetch", "-q", REMOTE, MAIN]);
+  await checkReviews(top, branch);
 
   const lock = join(gitOut(top, ["rev-parse", "--path-format=absolute", "--git-common-dir"]), "autodev-land.lock");
   const merged = await withLandLock(lock, branch, async () => {

@@ -66,7 +66,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 - `pre-commit`: `.gitignore` で無視されているファイルの強制追加を止め、ステージしたファイルを整形してステージし直してから、`autodev check --staged` を実行する。通ったら、ステージした差分に引き金が当たった教訓を出す（止めない。「記録を引き出す」）。`--staged` は index を OS の一時ディレクトリに写し（`git checkout-index`。`git commit <パス>` や `-a` の一時的な index も GIT_INDEX_FILE から読む）、`node_modules` を 1 つずつリンクして、そこでゲートを回す。ステージしていない変更や追跡していないファイルで合否が変わらないようにするため（評価のシナリオ `pub-commits-09`・`pub-commits-10`）。lint・型チェック・テストには GIT_ で始まる環境変数を渡さない（linked worktree では git が GIT_DIR を絶対パスで渡し、テストの中の git が本物のリポジトリを指すため。L-008）
 - `commit-msg`: 件名が Conventional Commits で英語であること、`Task:` の ID がボードにあること、テストを減らしたファイルごとに `Removed-test: <ファイル> -- <理由>` の行があることを確かめる（最後のものは `removed-test` の検査の mode に従う）
 - `pre-push`: main への push を止める
-- `post-commit` / `post-rewrite` / `pre-push`: roborev（AI のコードレビュー、）が入っていれば、コミットのレビューを裏で積む／rebase や amend のあとにレビューを付け替える／push の前に積み残しを渡す。ゲートではないので、コミットは止めない。roborev が無い環境や、`HARNESS_SKIP_REVIEW` があるとき（ハーネスの評価のシナリオのコミット）は何もしない
+- `post-commit` / `post-rewrite` / `pre-push`: roborev（AI のコードレビュー）が入っていれば、コミットのレビューを裏で積む／rebase や amend のあとにレビューを付け替える／push の前に積み残しを渡す。ゲートではないので、コミットは止めない。roborev が無い環境や、`HARNESS_SKIP_REVIEW` があるとき（ハーネスの評価のシナリオのコミット）は何もしない
 
 ## 返答の差し戻し（Stop フック）
 
@@ -91,10 +91,13 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 
 コミットのたびに、roborev のデーモンが Claude Code でそのコミットをレビューし、指摘を `~/.roborev` に溜める。指摘は閉じるまで残る。
 
-読むだけのレビューは、動かせば一度で分かる誤りを見落とす。だから roborev はゲートにせず、レビューの段数や effort も増やさない。中身のある指摘で穴が見つかったら、先にその穴を突く評価のシナリオ（`.autodev/eval/public/`）を足して、`autodev eval --set public` で止まらないことを確かめてから直す。以後はシナリオがその穴を守る（例: job 23 の、カテゴリで有効なだけのルールを overrides で切る穴は `pub-eval-weakening-14`）。
+指摘は、`autodev land` が取り込みの前に読ませる（下の「取り込み」の 1）。読む流れが無かったころは、nagaya の 151 件のレビューで High が 3 件あり、どれも本物の不具合だったのに、閉じた指摘も直した指摘も 0 件だった（nagaya の決定記録 0063・0066）。
 
-- 見る: `roborev job show HEAD`（コミットのレビュー）/ `roborev job list` / `roborev tui`
-- 直す: `roborev fix <ジョブ ID>`、直さない指摘は理由を `roborev job comment` に書いて `roborev job close`
+- 止めるのは High（と Critical）が開いたままのときだけ。Medium・Low は表示だけにする。読むだけのレビューは誤検出もあり、すべてで止めると、理由を書いて閉じるだけの作業が増えるため。High は、直すか、直さない理由を書いて閉じれば通る
+- 読むだけのレビューは、動かせば一度で分かる誤りも見落とすので、レビューの段数や effort は増やさない。中身のある指摘で検査の穴が見つかったら、先にその穴を突く評価のシナリオ（`.autodev/eval/public/`）を足して、`autodev eval --set public` で止まらないことを確かめてから直す。以後はシナリオがその穴を守る（例: job 23 の、カテゴリで有効なだけのルールを overrides で切る穴は `pub-eval-weakening-14`）
+
+- 見る: `roborev job show HEAD`（コミットのレビュー）/ `roborev job list --open` / `roborev tui`
+- 閉じる: 直したら、直したコミットと確かめたことを `roborev job comment --job <ID> "..."` に書いて `roborev job close <ID>`。直さない指摘は、理由を同じく comment に書いて close する（直すコミットを作っても、もとの job は開いたまま残る）
 - 重い変更を深く見たいとき: `roborev review --reasoning high <コミット>`
 - 設定はリポジトリではなく `~/.roborev/config.toml`（エージェント `claude-code`、モデル `claude-sonnet-5-5`、`review_reasoning = "medium"`、`isolate_reviews = true`）。Claude のサブスクの利用枠を使い、API キーは使わない
 - フックは自前だが、roborev が自分のフックと見なす印（2 行目）と `ROBOREV=` の絶対パスを入れてあるので、`roborev doctor` も警告せず、`roborev init` も上書きしない。印やパスの行は消さない
@@ -123,14 +126,15 @@ roborev の更新でフックの版（印の `v5` など）が上がると、セ
 
 ブランチを、PR を通して 1 件ずつ main に取り込む（）。main 以外のブランチの上で実行する。作業用の worktree でも、main の worktree の上のブランチでもよい。
 
-1. git の共通ディレクトリの `autodev-land.lock` を取る。ほかの取り込み中は待つ（持ち主のプロセスが死んでいれば外す）
-2. `origin/main` を取ってきて rebase する。衝突したら rebase を取り消し、衝突したファイルを示して止まる
-3. `pnpm install --frozen-lockfile --offline` で依存を入れ直す。rebase で main から新しい workspace のパッケージや依存が入っても、着手のときの `node_modules` のままゲートが落ちないようにするため。ストアに無い依存が増えたときは止まるので、`pnpm install --frozen-lockfile` を実行してからやり直す
-4. rebase した結果で、autodev のゲート（`check.ts`）を `--base origin/main` で直接回す。プロジェクトの `check` スクリプトは通さないので、取り込む変更が同じ変更で `check` を書き換えても、ゲートは外れない。フックの設定にも頼らないので、`core.hooksPath` が書き換えられていても効く。取り込み先と比べるので、コミットのフックを通らずに入った緩めも見る（T-268）
-5. ブランチを `--force-with-lease` で push し、draft の PR を作る（同じブランチの開いた PR があれば使い回す）。本文は `## Summary` とコミットの件名の一覧、`Task:` の行
-6. CI（`gh pr checks`）が終わるのを待つ。落ちたら、マージせずに止まる
-7. PR を ready にし、CI を通したコミットのままのときだけ（`--match-head-commit`）rebase でマージする。マージしたブランチは GitHub が消す
-8. GitHub の rebase マージはコミットを作り直すので、ブランチを `origin/main` に合わせ、ローカルの main を fast-forward する。main の worktree の上で実行したときは、main に戻ってブランチを消す
+1. `origin/main` を取ってきて、ブランチのコミットに付いた roborev の開いた指摘を一覧で出す（`roborev job list --branch <ブランチ>` と `roborev job show`）。High が開いたままなら、閉じ方を示して止まる。レビューが走っている間は 5 分まで待つ。終わっていない・積まれていない（`post_commit_batch_size` でまとめて待っている、失敗した、など）コミットは、そう表示して進む。rebase で SHA が変わる前に読み、ロックの外で読むので、ほかの取り込みを待たせない。roborev が無い環境では、見ていないことを 1 行出して進む。`HARNESS_SKIP_REVIEW` があるときは何もしない
+2. git の共通ディレクトリの `autodev-land.lock` を取る。ほかの取り込み中は待つ（持ち主のプロセスが死んでいれば外す）
+3. `origin/main` を取ってきて rebase する。衝突したら rebase を取り消し、衝突したファイルを示して止まる
+4. `pnpm install --frozen-lockfile --offline` で依存を入れ直す。rebase で main から新しい workspace のパッケージや依存が入っても、着手のときの `node_modules` のままゲートが落ちないようにするため。ストアに無い依存が増えたときは止まるので、`pnpm install --frozen-lockfile` を実行してからやり直す
+5. rebase した結果で、autodev のゲート（`check.ts`）を `--base origin/main` で直接回す。プロジェクトの `check` スクリプトは通さないので、取り込む変更が同じ変更で `check` を書き換えても、ゲートは外れない。フックの設定にも頼らないので、`core.hooksPath` が書き換えられていても効く。取り込み先と比べるので、コミットのフックを通らずに入った緩めも見る（T-268）
+6. ブランチを `--force-with-lease` で push し、draft の PR を作る（同じブランチの開いた PR があれば使い回す）。本文は `## Summary` とコミットの件名の一覧、`Task:` の行
+7. CI（`gh pr checks`）が終わるのを待つ。落ちたら、マージせずに止まる
+8. PR を ready にし、CI を通したコミットのままのときだけ（`--match-head-commit`）rebase でマージする。マージしたブランチは GitHub が消す
+9. GitHub の rebase マージはコミットを作り直すので、ブランチを `origin/main` に合わせ、ローカルの main を fast-forward する。main の worktree の上で実行したときは、main に戻ってブランチを消す
 
 main は、ローカルのゲートと CI を通った状態でしか進まない。main への直接の push は pre-push フックが止める（GitHub Free の private ではルールセットが使えないため）。取り込み済みで変更の無い worktree とブランチは、`autodev prune` で片付ける。取り込み済みかはローカルの main と `origin/main` で見るので、main の worktree が別のブランチを開いていてもよい。worktree は `git worktree remove` で外し、ブランチは取り込み済みを確かめたものだけを消す。未コミットの変更や取り込まれていないブランチは残り、理由が表示される。
 
