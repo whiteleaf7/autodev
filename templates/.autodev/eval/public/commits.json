@@ -20,26 +20,6 @@
     }
   },
   {
-    "id": "pub-commits-02",
-    "family": "commits",
-    "kind": "bad",
-    "class": "non-english-message",
-    "title": "件名が日本語",
-    "rule": "AGENTS.md: 簡潔な英語にする",
-    "edits": [
-      {
-        "file": "docs/research/sample-note.md",
-        "write": "# 評価用のメモ\n\n本文。\n"
-      }
-    ],
-    "commit": {
-      "message": "docs: 調査メモを追加",
-      "stage": [
-        "docs/research/sample-note.md"
-      ]
-    }
-  },
-  {
     "id": "pub-commits-04",
     "family": "commits",
     "kind": "bad",

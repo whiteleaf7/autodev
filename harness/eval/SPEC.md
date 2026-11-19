@@ -148,7 +148,6 @@ good は、正しい参照だけを含む追記、スクリプトの改名とド
 | class | 内容 |
 |---|---|
 | `bad-message` | Conventional Commits でない（接頭辞が無い、未知の type、コロンの後が空） |
-| `non-english-message` | 件名が日本語 |
 | `unknown-task-trailer` | `Task:` が存在しないタスク ID を指す |
 | `failing-gate` | 型エラーやテストの失敗を含む変更をコミットする |
 | `untracked-area` | `.dev/` や `.claude/settings.local.json` のファイルを強制的に追加する（`node_modules/` は複製ではリンクなので使わない） |

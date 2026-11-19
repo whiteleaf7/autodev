@@ -114,7 +114,7 @@ test("コミットメッセージの決まりを確かめる", () => {
   assert.equal(ok("update docs").length, 1);
   assert.equal(ok("feature: add tool").length, 1);
   assert.equal(ok("docs:").length, 1);
-  assert.match(ok("docs: 調査メモを追加")[0] ?? "", /英語/);
+  assert.deepEqual(ok("docs: 調査メモを追加"), [], "件名の言語はプロジェクトの規約に任せる");
   assert.match(ok("docs: add note\n\nTask: T-777")[0] ?? "", /T-777/);
 });
 
