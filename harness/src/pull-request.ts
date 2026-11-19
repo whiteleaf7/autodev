@@ -10,6 +10,17 @@ export function pullRequestBody(commits: Commit[]): string {
   return `${lines.join("\n")}\n`;
 }
 
+// PR のタイトルは、取り込む人が決めて渡す。コミットの件名をそのまま使うと、複数のコミットのときに 1 件目だけを指してしまう。
+// 形はプロジェクトの AGENTS.md の決まりに任せ、ここでは見ない。使い回す PR は、渡されたときだけ付け直す
+export const NEEDS_TITLE =
+  '新しく PR を作るので、--title でタイトルを渡す（例: pnpm land --title "<タイトル>"）。形はプロジェクトの AGENTS.md の決まりに従う';
+
+export function titleProblem(title: string | undefined, hasOpenPullRequest: boolean): string | null {
+  if (title !== undefined && !title.trim()) return "--title が空。PR のタイトルを渡す";
+  if (title === undefined && !hasOpenPullRequest) return NEEDS_TITLE;
+  return null;
+}
+
 // `gh pr checks --json bucket` の bucket は pass / fail / pending / skipping / cancel
 export type Check = { name: string; bucket: string };
 export type CiVerdict = { state: "pending" } | { state: "pass" } | { state: "fail"; failed: string[] };

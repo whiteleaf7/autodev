@@ -8,9 +8,10 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { parseArgs } from "node:util";
 import { z } from "zod";
 import { withoutGitEnv } from "./env.ts";
-import { ciVerdict, type Check, type Commit, pullRequestBody } from "./pull-request.ts";
+import { ciVerdict, type Check, type Commit, NEEDS_TITLE, pullRequestBody, titleProblem } from "./pull-request.ts";
 import {
   type BranchCommit,
   type CoveringJob,
@@ -155,21 +156,18 @@ function commitsOf(top: string, range: string): Commit[] {
     });
 }
 
+function existingPullRequest(top: string, branch: string): string {
+  return gh(top, ["pr", "list", "--head", branch, "--state", "open", "--json", "number", "--jq", ".[0].number"]);
+}
+
 // 同じブランチの開いた PR があれば使い回す（CI が落ちて直したあとの、2 回目の land）
-function openPullRequest(top: string, branch: string, commits: Commit[]): string {
-  const existing = gh(top, [
-    "pr",
-    "list",
-    "--head",
-    branch,
-    "--state",
-    "open",
-    "--json",
-    "number",
-    "--jq",
-    ".[0].number",
-  ]);
-  if (existing) return existing;
+function openPullRequest(top: string, branch: string, commits: Commit[], title: string | undefined): string {
+  const existing = existingPullRequest(top, branch);
+  if (existing) {
+    if (title) gh(top, ["pr", "edit", existing, "--title", title]);
+    return existing;
+  }
+  if (!title) throw new LandError(NEEDS_TITLE);
   const url = gh(top, [
     "pr",
     "create",
@@ -179,7 +177,7 @@ function openPullRequest(top: string, branch: string, commits: Commit[]): string
     "--head",
     branch,
     "--title",
-    commits[0]?.subject ?? branch,
+    title,
     "--body",
     pullRequestBody(commits),
   ]);
@@ -306,6 +304,7 @@ async function checkReviews(top: string, branch: string): Promise<void> {
 }
 
 async function land(): Promise<void> {
+  const { title } = parseArgs({ options: { title: { type: "string" } } }).values;
   const top = realpathSync(gitOut(process.cwd(), ["rev-parse", "--show-toplevel"]));
   const branch = gitOut(top, ["branch", "--show-current"]);
   if (!branch) throw new LandError("ブランチの上で実行する（detached HEAD になっている）");
@@ -314,6 +313,10 @@ async function land(): Promise<void> {
   if (gitOut(top, ["status", "--porcelain"]))
     throw new LandError("コミットしていない変更か、追跡していないファイルがある。コミットするか片付けてから実行する");
   if (!git(top, ["remote", "get-url", REMOTE]).ok) throw new LandError(`リモート ${REMOTE} が無い`);
+
+  // タイトルが無いのに気づくのが、ゲートと push のあとにならないよう、先に確かめる
+  const problem = titleProblem(title, Boolean(existingPullRequest(top, branch)));
+  if (problem) throw new LandError(problem);
 
   gitOut(top, ["fetch", "-q", REMOTE, MAIN]);
   await checkReviews(top, branch);
@@ -329,7 +332,7 @@ async function land(): Promise<void> {
     // rebase で作り直したブランチを上書きする。main ではないので、force push の禁止には当たらない
     gitOut(top, ["push", "-q", "--force-with-lease", "-u", REMOTE, branch]);
     const head = gitOut(top, ["rev-parse", "HEAD"]);
-    const pr = openPullRequest(top, branch, commitsOf(top, `${UPSTREAM}..${branch}`));
+    const pr = openPullRequest(top, branch, commitsOf(top, `${UPSTREAM}..${branch}`), title);
     console.error(`land: PR #${pr} の CI を待っている`);
     await waitForCi(top, pr);
     gh(top, ["pr", "ready", pr]);

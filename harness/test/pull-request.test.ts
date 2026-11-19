@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pushesToMain } from "../src/commit.ts";
-import { ciVerdict, pullRequestBody } from "../src/pull-request.ts";
+import { ciVerdict, pullRequestBody, titleProblem } from "../src/pull-request.ts";
 
 test("PR の本文は、コミットの件名の一覧と、重ねない Task: の行にする", () => {
   const body = pullRequestBody([
@@ -40,4 +40,11 @@ test("main への push だけを見つける", () => {
   assert.equal(pushesToMain("(delete) 0000000 refs/heads/main 1111111"), true, "main の削除も止める");
   assert.equal(pushesToMain(line("refs/heads/main-backup")), false);
   assert.equal(pushesToMain(""), false);
+});
+
+test("新しく PR を作るときだけ、タイトルを求める", () => {
+  assert.equal(titleProblem("[T-001] 一覧を並べ替える", false), null);
+  assert.match(titleProblem(undefined, false) ?? "", /--title/);
+  assert.equal(titleProblem(undefined, true), null, "使い回す PR は、いまのタイトルのまま");
+  assert.match(titleProblem("  ", true) ?? "", /空/);
 });
