@@ -76,7 +76,7 @@
 - 分離は、git を含む Bash のコマンドのうち、行き先を文面から確かめられないものを断る。git を打つコマンドには `$(...)`・バッククォート・引用符なしのヒアドキュメント（`<<EOF`）・`sh -c "git …"` を入れず、main の worktree への `cd` や `git -C` と `-c core.hooksPath` を使わない。コミットのメッセージは Write で `.dev/` に書いて `git commit -F .dev/<ファイル>` で渡す。断られたら、表示された理由のとおりに分けて打ち直す（形の一覧は `docs/harness.md` の「作業者の Bash の分離」）
 - ボードには、どの worktree からでも MCP または `pnpm board:apply` で書いてよい（すべて同じ SQLite に入り、コミットは要らない）
 - 決定記録は main の worktree に書かれ、作業者はそこに git を打てない。作業者が決定記録を書いたら、司令塔への報告にそのファイルを書く。司令塔が自分のブランチに入れて `pnpm land` で取り込む
-- 終わったら、自分の worktree で `pnpm land` を実行する。origin/main に rebase してゲートを通し、PR を作って CI が通ったらマージする。ほかの取り込みが終わるまで待つ。衝突したら `git rebase origin/main` で解消して、もう一度 `pnpm land`。CI が落ちたら、直してコミットし、もう一度 `pnpm land`（同じ PR を使い回す）
+- 終わったら、自分の worktree で `pnpm land --title "<PR のタイトル>"` を実行する。タイトルはコミットの件名を写さず、PR 全体を表すものを決める（形はプロジェクト固有のルールに従う）。origin/main に rebase してゲートを通し、PR を作って CI が通ったらマージする。ほかの取り込みが終わるまで待つ。衝突したら `git rebase origin/main` で解消して、もう一度 `pnpm land`。CI が落ちたら、直してコミットし、もう一度 `pnpm land`（同じ PR を使い回す）
 - `pnpm land` が roborev（コミットごとの AI レビュー）の High の指摘で止めたら、直すか、直さない理由を書いて閉じてから、もう一度 `pnpm land`（閉じ方は止めたときに表示される）。Medium・Low は表示だけなので、読んで、直すべきものはタスクにする
 - 取り込んでから、確かめたことをメモに書いて `done` にする。司令塔への報告は、結果・取り込んだコミット・残った問題の 3 行ほどにする
 - 使い終わった worktree は、司令塔が main の worktree で `pnpm worktree:prune` を実行して片付ける
