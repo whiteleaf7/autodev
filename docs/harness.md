@@ -64,7 +64,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 `pnpm install` が `git config core.hooksPath .githooks` と、`git blame` で書式だけのコミットを飛ばす `blame.ignoreRevsFile`（`.git-blame-ignore-revs`）を設定する。
 
 - `pre-commit`: `.gitignore` で無視されているファイルの強制追加を止め、ステージしたファイルを整形してステージし直してから、`autodev check --staged` を実行する。通ったら、ステージした差分に引き金が当たった教訓を出す（止めない。「記録を引き出す」）。`--staged` は index を OS の一時ディレクトリに写し（`git checkout-index`。`git commit <パス>` や `-a` の一時的な index も GIT_INDEX_FILE から読む）、`node_modules` を 1 つずつリンクして、そこでゲートを回す。ステージしていない変更や追跡していないファイルで合否が変わらないようにするため（評価のシナリオ `pub-commits-09`・`pub-commits-10`）。lint・型チェック・テストには GIT_ で始まる環境変数を渡さない（linked worktree では git が GIT_DIR を絶対パスで渡し、テストの中の git が本物のリポジトリを指すため。L-008）
-- `commit-msg`: 件名が Conventional Commits で英語であること、`Task:` の ID がボードにあること、テストを減らしたファイルごとに `Removed-test: <ファイル> -- <理由>` の行があることを確かめる（最後のものは `removed-test` の検査の mode に従う）
+- `commit-msg`: 件名が Conventional Commits であること（件名の言語は見ない。プロジェクトの AGENTS.md の規約に任せる）、`Task:` の ID がボードにあること、テストを減らしたファイルごとに `Removed-test: <ファイル> -- <理由>` の行があることを確かめる（最後のものは `removed-test` の検査の mode に従う）
 - `pre-push`: main への push を止める
 - `post-commit` / `post-rewrite` / `pre-push`: roborev（AI のコードレビュー）が入っていれば、コミットのレビューを裏で積む／rebase や amend のあとにレビューを付け替える／push の前に積み残しを渡す。ゲートではないので、コミットは止めない。roborev が無い環境や、`HARNESS_SKIP_REVIEW` があるとき（ハーネスの評価のシナリオのコミット）は何もしない
 

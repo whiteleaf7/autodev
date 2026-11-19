@@ -34,7 +34,6 @@ export function checkMessage(message: string, facts: CommitFacts): string[] {
   if (!CONVENTIONAL.test(subject)) {
     problems.push(`件名を Conventional Commits にする（例: "feat: add recall tool"）。使える type: ${TYPES.join(" ")}`);
   }
-  if (/\P{ASCII}/u.test(subject)) problems.push("件名は簡潔な英語で書く");
 
   const trailers = lines.filter((line) => /^Task:/i.test(line)).flatMap((line) => line.match(/T-\d+/g) ?? []);
   for (const id of new Set(trailers)) {
