@@ -55,3 +55,17 @@ test("hiddenPaths から基点にあったパスを外すのを見つけ、足�
   assert.deepEqual(checksOf({}, base), ["unhidden-path"], "設定ごと消す");
   assert.deepEqual(checksOf(config([".autodev/eval/heldout/", "secret/"]), base), []);
 });
+
+const WORKFLOW_CONFIG = ".autodev/workflow.json";
+
+test("ゲートを回す流れの設定を、基点より緩める・崩すのを見つけ、強めるのは通す", () => {
+  const loose = JSON.stringify({ commitRunsSlowChecks: false, landWaitsForCi: false });
+  assert.deepEqual(checksOf({ [WORKFLOW_CONFIG]: loose }, {}), ["loosened-workflow", "loosened-workflow"]);
+  assert.deepEqual(
+    checksOf({ [WORKFLOW_CONFIG]: '{"landWaitsForCi": false}' }, { [WORKFLOW_CONFIG]: "{}" }),
+    ["loosened-workflow"],
+  );
+  assert.deepEqual(checksOf({ [WORKFLOW_CONFIG]: "{" }, {}), ["broken-workflow-config"]);
+  assert.deepEqual(checksOf({}, { [WORKFLOW_CONFIG]: loose }), [], "設定を消して既定（慎重）に戻す");
+  assert.deepEqual(checksOf({ [WORKFLOW_CONFIG]: loose }, { [WORKFLOW_CONFIG]: loose }), [], "前から緩めている");
+});

@@ -20,7 +20,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 | 記録 | 形式の崩れた決定記録（形式の決まりは devboard が持ち、`devboard lint-decisions` に渡して調べる。タスクの決まりは、ボードに書く時点で devboard が断る） | `harness/src/checks/records.ts` |
 | ドキュメント | 存在しないスクリプト・パス・決定記録・MCP ツールへの言及、設定が指す先の欠け。MCP ツールの名前は、`devboard tools` が返す登録済みの名前と照らす | `harness/src/checks/docs.ts` |
 | 共通の規約 | AGENTS.md の共通の規約の区画の中身が、始まりの行に記録したハッシュと合うか（区画が無い AGENTS.md は見ない。CI でも動く）。autodev の最新の共通の規約と区画が違うときは、案内だけを出して止めない。区画は直接直さず、`autodev rules-sync` で更新する | `harness/src/checks/rules.ts` |
-| 自分を判定する仕組み | CI（`.github/workflows/`）からゲートを回す行を消す・`continue-on-error: true` を足す（`loosened-ci`）、`.githooks/` のフックから `autodev hook` の呼び出しを消す（`neutered-hook`）、`.devboard.json` の `hiddenPaths` から基点にあったパスを外す（`unhidden-path`）。変更が、自分を判定する仕組みを同じ変更で外せないようにするため（T-268）。いまは observe | `harness/src/checks/self-guard.ts` |
+| 自分を判定する仕組み | CI（`.github/workflows/`）からゲートを回す行を消す・`continue-on-error: true` を足す（`loosened-ci`）、`.githooks/` のフックから `autodev hook` の呼び出しを消す（`neutered-hook`）、`.devboard.json` の `hiddenPaths` から基点にあったパスを外す（`unhidden-path`）。`.autodev/workflow.json` の項目を基点より緩める（`loosened-workflow`）・崩す（`broken-workflow-config`）。変更が、自分を判定する仕組みを同じ変更で外せないようにするため（T-268）。いまは observe | `harness/src/checks/self-guard.ts` |
 | 取り込み先との差 | `--base <rev>`（land は `origin/main`）を渡したとき、HEAD と比べても出ず、`<rev>` と比べると出る緩め（`loosened-since-base`。もとの検査の名前を `[...]` で添える）。コミットのフックを `--no-verify` などで通らずに入った緩めを拾う。テストの減りは、範囲のどれかのコミットの本文の `Removed-test:` の行で通す。いまは observe | `harness/src/checks/since-base.ts` |
 | 検査の mode | `.autodev/gate.json` の崩れ、検査の mode を基点より下げる変更（enforce → observe・off、observe → off。既定が observe の検査を enforce に上げた設定を消すのも含む）。この 2 つの検査の mode は、設定では変えられない | `harness/src/check-modes.ts` |
 | lint | 待っていない Promise、`any`、理由の無い空の catch・空の関数、使っていない変数、import の循環（型だけの import も数える）、oxlint の correctness のルール | `pnpm lint`（oxlint と oxlint-tsgolint。設定は `.oxlintrc.json`） |
@@ -59,11 +59,23 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 3. しばらく作業してから、各プロジェクトで `autodev gate-log --check <名前>` を見る。誤検出があれば、その例を通す例として `public/` に足して検査を直す
 4. 誤検出が無くなったら、`DEFAULT_MODES` から消して enforce にする。先に 1 つのプロジェクトだけで止めたいときは、そのプロジェクトの `.autodev/gate.json` で `enforce` にする（上げる変更は止めない）
 
+### ゲートを回す流れ（`.autodev/workflow.json`）
+
+プロジェクトは、待ち時間を減らすために、ゲートを回す流れを緩められる。無いときと、崩れているときは、いちばん慎重な流れ（下の既定）で動く。
+
+| 項目 | 既定 | `false` にしたとき |
+|---|---|---|
+| `commitRunsSlowChecks` | `true` | コミットのゲート（pre-commit）は速い検査だけを回す。lint・型チェック・テストは land のゲートで回す。評価の緩めを止める速い検査は、コミットのたびに回る（land は rebase のあとの HEAD を見るので、HEAD と比べる検査がコミットでしか効かないため） |
+| `landWaitsForCi` | `true` | land は PR の CI を待たずにマージする。main は land のゲートを通ってしか進まず、CI は main への push で回る |
+
+- 開発者が 1 人の初期開発のように、CI と同じ検査を手元で済ませていて、待ち時間が効くときに使う。ほかの開発者が入る・公開する前に戻す
+- 緩める変更は、自分を判定する仕組みの検査（`loosened-workflow`）が見る。いまは observe
+
 ## フック（`.githooks/`）
 
 `pnpm install` が `git config core.hooksPath .githooks` と、`git blame` で書式だけのコミットを飛ばす `blame.ignoreRevsFile`（`.git-blame-ignore-revs`）を設定する。
 
-- `pre-commit`: `.gitignore` で無視されているファイルの強制追加を止め、ステージしたファイルを整形してステージし直してから、`autodev check --staged` を実行する。通ったら、ステージした差分に引き金が当たった教訓を出す（止めない。「記録を引き出す」）。`--staged` は index を OS の一時ディレクトリに写し（`git checkout-index`。`git commit <パス>` や `-a` の一時的な index も GIT_INDEX_FILE から読む）、`node_modules` を 1 つずつリンクして、そこでゲートを回す。ステージしていない変更や追跡していないファイルで合否が変わらないようにするため（評価のシナリオ `pub-commits-09`・`pub-commits-10`）。lint・型チェック・テストには GIT_ で始まる環境変数を渡さない（linked worktree では git が GIT_DIR を絶対パスで渡し、テストの中の git が本物のリポジトリを指すため。L-008）
+- `pre-commit`: `.gitignore` で無視されているファイルの強制追加を止め、ステージしたファイルを整形してステージし直してから、`autodev check --staged` を実行する。`.autodev/workflow.json` の `commitRunsSlowChecks` が `false` なら、速い検査だけを回し、lint・型チェック・テストは land のゲートに任せる。通ったら、ステージした差分に引き金が当たった教訓を出す（止めない。「記録を引き出す」）。`--staged` は index を OS の一時ディレクトリに写し（`git checkout-index`。`git commit <パス>` や `-a` の一時的な index も GIT_INDEX_FILE から読む）、`node_modules` を 1 つずつリンクして、そこでゲートを回す。ステージしていない変更や追跡していないファイルで合否が変わらないようにするため（評価のシナリオ `pub-commits-09`・`pub-commits-10`）。lint・型チェック・テストには GIT_ で始まる環境変数を渡さない（linked worktree では git が GIT_DIR を絶対パスで渡し、テストの中の git が本物のリポジトリを指すため。L-008）
 - `commit-msg`: 件名が Conventional Commits であること（件名の言語は見ない。プロジェクトの AGENTS.md の規約に任せる）、`Task:` の ID がボードにあること、テストを減らしたファイルごとに `Removed-test: <ファイル> -- <理由>` の行があることを確かめる（最後のものは `removed-test` の検査の mode に従う）
 - `pre-push`: main への push を止める
 - `post-commit` / `post-rewrite` / `pre-push`: roborev（AI のコードレビュー）が入っていれば、コミットのレビューを裏で積む／rebase や amend のあとにレビューを付け替える／push の前に積み残しを渡す。ゲートではないので、コミットは止めない。roborev が無い環境や、`HARNESS_SKIP_REVIEW` があるとき（ハーネスの評価のシナリオのコミット）は何もしない
@@ -91,7 +103,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 
 コミットのたびに、roborev のデーモンが Claude Code でそのコミットをレビューし、指摘を `~/.roborev` に溜める。指摘は閉じるまで残る。
 
-指摘は、`autodev land` が取り込みの前に読ませる（下の「取り込み」の 1）。読む流れが無かったころは、nagaya の 151 件のレビューで High が 3 件あり、どれも本物の不具合だったのに、閉じた指摘も直した指摘も 0 件だった（nagaya の決定記録 0063・0066）。
+指摘は、`autodev land` が取り込みの前に読ませる（下の「取り込み」の 1）。roborev の設定でコミットのあとのレビューを「まとめ待ち」にしている（`post_commit_batch_size`・`post_commit_quiet_period`）と、レビューは push の前（pre-push の `roborev post-commit --flush-push`）まで積まれない。land は push より先に指摘を読むので、読む前に同じ口でブランチのまとめ待ちを積み、終わるのを待つ（T-328。これが無かったころは、land が毎回「レビューが積まれていない」と出して進み、push のあとに走ったレビューの結果を誰も見ていなかった）。読む流れが無かったころは、nagaya の 151 件のレビューで High が 3 件あり、どれも本物の不具合だったのに、閉じた指摘も直した指摘も 0 件だった（nagaya の決定記録 0063・0066）。
 
 - 止めるのは High（と Critical）が開いたままのときだけ。Medium・Low は表示だけにする。読むだけのレビューは誤検出もあり、すべてで止めると、理由を書いて閉じるだけの作業が増えるため。High は、直すか、直さない理由を書いて閉じれば通る
 - 読むだけのレビューは、動かせば一度で分かる誤りも見落とすので、レビューの段数や effort は増やさない。中身のある指摘で検査の穴が見つかったら、先にその穴を突く評価のシナリオ（`.autodev/eval/public/`）を足して、`autodev eval --set public` で止まらないことを確かめてから直す。以後はシナリオがその穴を守る（例: job 23 の、カテゴリで有効なだけのルールを overrides で切る穴は `pub-eval-weakening-14`）

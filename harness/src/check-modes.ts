@@ -21,6 +21,9 @@ export const DEFAULT_MODES: Defaults = {
   "loosened-ci": "observe",
   "neutered-hook": "observe",
   "unhidden-path": "observe",
+  // T-329: ゲートを回す流れの設定（.autodev/workflow.json）を緩める・崩す
+  "loosened-workflow": "observe",
+  "broken-workflow-config": "observe",
 };
 
 // 評価（autodev eval）は、observe で始めた検査も止める側で判定する。止める例・通す例のシナリオで、検査の中身を試すため

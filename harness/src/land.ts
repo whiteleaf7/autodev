@@ -2,10 +2,10 @@
 // 先に、ブランチのコミットに付いた roborev の開いた指摘を見せ、High が開いたままなら止める。
 // 取り込みのロックを取り、origin/main に rebase して依存を入れ直し、その結果でゲート（autodev check --base origin/main）を通し、ブランチを push して draft の PR を作る。
 // CI が通ったら PR を ready にして rebase でマージし、ローカルの main を origin/main に進める。
-// main は、ローカルのゲートと CI を通った状態でしか進まない。フックの設定に頼らずゲートを通すので、core.hooksPath が書き換えられても効く。
+// main は、ローカルのゲートと CI を通った状態でしか進まない（.autodev/workflow.json の landWaitsForCi が false なら、ローカルのゲートだけ）。フックの設定に頼らずゲートを通すので、core.hooksPath が書き換えられても効く。
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
@@ -23,6 +23,7 @@ import {
   relevantJobs,
   reviewReport,
 } from "./review-findings.ts";
+import { parseWorkflowConfig, WORKFLOW_CONFIG_FILE, type WorkflowConfig } from "./workflow-config.ts";
 import { parseWorktrees } from "./worktrees.ts";
 
 const REMOTE = "origin";
@@ -202,6 +203,14 @@ async function waitForCi(top: string, pr: string): Promise<void> {
 
 // GitHub の rebase マージはコミットを作り直すので、ブランチを origin/main に合わせてから main を進める。
 // こうしておくと、pnpm worktree:prune が「取り込み済み」と判断して消せる
+// rebase のあとの作業ツリーの設定を読む。崩れていれば、既定（CI を待つ）にして知らせる
+function readWorkflowConfig(top: string): WorkflowConfig {
+  const file = join(top, WORKFLOW_CONFIG_FILE);
+  const { config, error } = parseWorkflowConfig(existsSync(file) ? readFileSync(file, "utf8") : null);
+  if (error) console.error(`land: ${WORKFLOW_CONFIG_FILE} が崩れているので、既定で動く: ${error}`);
+  return config;
+}
+
 function syncMain(top: string, branch: string): void {
   // GitHub がマージしたブランチを消すので、残った追跡のブランチと upstream を外す。
   // upstream が残っていると、git branch -d が「upstream に取り込まれていない」と断る
@@ -220,10 +229,11 @@ function syncMain(top: string, branch: string): void {
   if (inMainWorktree) gitOut(top, ["branch", "-q", "-d", branch]);
 }
 
-function roborev(top: string, args: string[]): { ok: boolean; out: string } {
+function roborev(top: string, args: string[], input?: string): { ok: boolean; out: string } {
   const { status, stdout, stderr, error } = spawnSync("roborev", args, {
     cwd: top,
     encoding: "utf8",
+    input,
     env: { ...process.env, ROBOREV_TELEMETRY_ENABLED: "0" },
   });
   if (error) return { ok: false, out: error.message };
@@ -267,6 +277,13 @@ function findingsOf(top: string, jobs: CoveringJob[]): JobFindings {
   );
 }
 
+// git が pre-push に標準入力で渡す 1 行（<ローカルの ref> <SHA> <リモートの ref> <リモートの SHA>）。
+// リモートの SHA は、取り込み先と分かれたところにする。範囲がブランチのコミットだけになる
+function pushedRefLine(top: string, branch: string): string {
+  const ref = `refs/heads/${branch}`;
+  return `${ref} ${gitOut(top, ["rev-parse", branch])} ${ref} ${gitOut(top, ["merge-base", UPSTREAM, branch])}\n`;
+}
+
 // 取り込むコミットに付いた roborev の開いた指摘を見せ、High が開いたままなら止める（T-290）。
 // rebase で SHA が変わる前に、レビューされたコミットのままで読む。ロックの外で読むので、ほかの取り込みを待たせない
 async function checkReviews(top: string, branch: string): Promise<void> {
@@ -283,6 +300,11 @@ async function checkReviews(top: string, branch: string): Promise<void> {
       return { sha, subject };
     });
   const mine = (jobs: CoveringJob[]) => relevantJobs(commits, jobs);
+
+  // コミットのあとのレビューを「まとめ待ち」にする roborev の設定では、レビューは push の前（pre-push）に積まれる。
+  // land は push より先に指摘を読むので、pre-push と同じ口でここで積み、終わるのを下で待つ。push のときには積み残しが無い
+  const flushed = roborev(top, ["post-commit", "--flush-push"], pushedRefLine(top, branch));
+  if (!flushed.ok) console.error(`land: roborev のまとめ待ちのレビューを積めなかった: ${flushed.out}`);
 
   const deadline = Date.now() + REVIEW_WAIT_MS;
   let jobs = branchJobs(top, branch);
@@ -333,10 +355,16 @@ async function land(): Promise<void> {
     gitOut(top, ["push", "-q", "--force-with-lease", "-u", REMOTE, branch]);
     const head = gitOut(top, ["rev-parse", "HEAD"]);
     const pr = openPullRequest(top, branch, commitsOf(top, `${UPSTREAM}..${branch}`), title);
-    console.error(`land: PR #${pr} の CI を待っている`);
-    await waitForCi(top, pr);
+    if (readWorkflowConfig(top).landWaitsForCi) {
+      console.error(`land: PR #${pr} の CI を待っている`);
+      await waitForCi(top, pr);
+    } else {
+      console.error(
+        `land: CI を待たずにマージする（${WORKFLOW_CONFIG_FILE} の landWaitsForCi）。CI は ${MAIN} への push で回る`,
+      );
+    }
     gh(top, ["pr", "ready", pr]);
-    // CI を通したコミットのままのときだけマージする
+    // ゲート（と CI）を通したコミットのままのときだけマージする
     gh(top, ["pr", "merge", pr, "--rebase", "--match-head-commit", head]);
     syncMain(top, branch);
     return pr;

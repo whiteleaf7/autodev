@@ -2,6 +2,7 @@
 // 中身の正しさは問わず、基点にあった守りが消えたことだけを見る。守りを足す・強める変更は止めない
 
 import { parseJson, type Problem, type Repo, type Tree } from "../repo.ts";
+import { loosenedSettings, parseWorkflowConfig, WORKFLOW_CONFIG_FILE } from "../workflow-config.ts";
 
 const WORKFLOW = /^\.github\/workflows\/[^/]+\.ya?ml$/;
 // ゲートを回す行（`run: pnpm check`、複数行の run の中の `pnpm -s check` など）
@@ -68,8 +69,35 @@ function hiddenPaths(repo: Repo, base: Tree): Problem[] {
     }));
 }
 
+const LOOSENED_WORKFLOW_MESSAGES = {
+  commitRunsSlowChecks: "commitRunsSlowChecks を false にしている（コミットのゲートが lint・型チェック・テストを回さなくなる）",
+  landWaitsForCi: "landWaitsForCi を false にしている（land が CI を待たずに main へマージする）",
+} as const;
+
+function workflowSettings(repo: Repo, base: Tree): Problem[] {
+  const now = parseWorkflowConfig(repo.read(WORKFLOW_CONFIG_FILE));
+  const before = parseWorkflowConfig(base.read(WORKFLOW_CONFIG_FILE)).config;
+  const broken: Problem[] = now.error
+    ? [
+        {
+          check: "broken-workflow-config",
+          file: WORKFLOW_CONFIG_FILE,
+          message: `設定が崩れているので、既定（いちばん慎重な流れ）で動く: ${now.error}`,
+        },
+      ]
+    : [];
+  return [
+    ...broken,
+    ...loosenedSettings(before, now.config).map((setting) => ({
+      check: "loosened-workflow",
+      file: WORKFLOW_CONFIG_FILE,
+      message: LOOSENED_WORKFLOW_MESSAGES[setting],
+    })),
+  ];
+}
+
 export function checkSelfGuards(repo: Repo): Problem[] {
   const base = repo.base;
   if (!base) return [];
-  return [...workflows(repo, base), ...hooks(repo, base), ...hiddenPaths(repo, base)];
+  return [...workflows(repo, base), ...hooks(repo, base), ...hiddenPaths(repo, base), ...workflowSettings(repo, base)];
 }

@@ -1,7 +1,8 @@
 // コミット前のゲート。ルートの `pnpm check` から呼ぶ。
 // 速い検査（評価の緩め、規約、記録、ドキュメント）を先に行い、通ったら lint・型チェック・テストを実行する。
 //   autodev check            作業ツリーを検査する
-//   autodev check --staged   index（コミットされる中身）を一時ディレクトリに写して検査する。pre-commit が使う
+//   autodev check --staged   index（コミットされる中身）を一時ディレクトリに写して検査する。pre-commit が使う。
+//                            .autodev/workflow.json の commitRunsSlowChecks が false なら、速い検査だけ
 //   autodev check --base <rev>  作業ツリーを、HEAD に加えて <rev>（取り込み先のブランチ）とも比べる。land が origin/main で使う
 
 import { projectRoot } from "./project-root.ts";
@@ -23,6 +24,7 @@ import { cacheFile, environmentOf, gateKey, hashFiles, lookup, readEntries, reco
 import { logFindings } from "./gate-log.ts";
 import { formatTimings, runBuffered, runInherited, type Stage } from "./steps.ts";
 import { testArgs } from "./test-scope.ts";
+import { parseWorkflowConfig, WORKFLOW_CONFIG_FILE } from "./workflow-config.ts";
 
 const ROOT = projectRoot();
 
@@ -105,6 +107,13 @@ async function runGate(
       `\n${problems.length} 件の問題がある。直してから、もう一度 pnpm check を実行する（lint・型チェック・テストは、これが通ってから走る）`,
     );
     return finish(1);
+  }
+
+  if (staged && !parseWorkflowConfig(repo.read(WORKFLOW_CONFIG_FILE)).config.commitRunsSlowChecks) {
+    console.log(
+      `check: 速い検査は通った。lint・型チェック・テストは、land のゲートで回す（${WORKFLOW_CONFIG_FILE} の commitRunsSlowChecks）`,
+    );
+    return finish(0);
   }
 
   // 同じ中身を、すでに通している（手での check、コミットの pre-commit、land）なら、lint・型チェック・テストは飛ばす。CI は、いつも全部を回す
