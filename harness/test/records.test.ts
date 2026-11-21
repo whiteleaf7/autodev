@@ -41,3 +41,26 @@ test("決定記録が 1 つも無いリポジトリは、検査に空の入力�
   );
   assert.equal(received, 0);
 });
+
+const DECISION = "docs/decisions/0001-first.md";
+
+test("決定記録が比べる先のどれとも同じなら devboard を呼ばず、どれかと違えば全部を渡す", () => {
+  const calls: string[][] = [];
+  const lint = (files: { file: string }[]) => {
+    calls.push(files.map((f) => f.file));
+    return [];
+  };
+  const now = memoryRepo({ [DECISION]: "# 0001. 一つめ\n", "src/a.ts": "export {}\n" }, { [DECISION]: "# 0001. 一つめ\n" });
+  const changed = memoryRepo({ [DECISION]: "# 0001. 直した\n" }, { [DECISION]: "# 0001. 一つめ\n" });
+  const added = memoryRepo({ [DECISION]: "# 0001. 一つめ\n" }, {});
+
+  checkRecords(now, lint, [now.base]);
+  assert.equal(calls.length, 0, "基点と同じ（コミットで決定記録に触れていない）");
+  checkRecords(changed, lint, [changed.base]);
+  checkRecords(added, lint, [added.base]);
+  assert.equal(calls.length, 2, "書き換えた・足した");
+  checkRecords(now, lint, [now.base, memoryRepo({})]);
+  assert.equal(calls.length, 3, "land: HEAD とは同じでも、取り込み先と違う");
+  checkRecords(now, lint, [null]);
+  assert.equal(calls.length, 4, "比べる先が無ければ、いつも渡す");
+});

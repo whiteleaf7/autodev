@@ -91,7 +91,7 @@ async function runGate(
         ...atHead,
         ...(target ? targetChecks(repo, target, atHead) : []),
         ...checkConventions(repo),
-        ...checkRecords(repo, (files) => lintDecisionFiles(files, dir)),
+        ...checkRecords(repo, (files) => lintDecisionFiles(files, dir), [repo.base, target?.tree ?? null]),
         ...checkDocs(repo, requireToolNames(dir)),
         ...checkRules(repo),
       ],

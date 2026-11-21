@@ -17,7 +17,7 @@ AI が自律して開発を回すための仕組み（ゲート、記録、次�
 |---|---|---|
 | 評価の緩め | テストの skip・削除・アサーションの無いテスト、tsconfig と `.oxlintrc.json` の緩め、検査スクリプトの無効化、`@ts-ignore`、理由の無い lint の除外、パッケージが検査から外れる変更 | `harness/src/checks/gate.ts` |
 | コードの規約 | `127.0.0.1` 以外での待ち受け、npm / npx の実行、JSDoc の型の `any`（リポジトリに固有のもの、lint で見られないもの） | `harness/src/checks/conventions.ts` |
-| 記録 | 形式の崩れた決定記録（形式の決まりは devboard が持ち、`devboard lint-decisions` に渡して調べる。タスクの決まりは、ボードに書く時点で devboard が断る） | `harness/src/checks/records.ts` |
+| 記録 | 形式の崩れた決定記録（形式の決まりは devboard が持ち、`devboard lint-decisions` に渡して調べる。決定記録が基点〈land では取り込み先も〉と変わっていなければ、呼ばない。タスクの決まりは、ボードに書く時点で devboard が断る） | `harness/src/checks/records.ts` |
 | ドキュメント | 存在しないスクリプト・パス・決定記録・MCP ツールへの言及、設定が指す先の欠け。MCP ツールの名前は、`devboard tools` が返す登録済みの名前と照らす | `harness/src/checks/docs.ts` |
 | 共通の規約 | AGENTS.md の共通の規約の区画の中身が、始まりの行に記録したハッシュと合うか（区画が無い AGENTS.md は見ない。CI でも動く）。autodev の最新の共通の規約と区画が違うときは、案内だけを出して止めない。区画は直接直さず、`autodev rules-sync` で更新する | `harness/src/checks/rules.ts` |
 | 自分を判定する仕組み | CI（`.github/workflows/`）からゲートを回す行を消す・`continue-on-error: true` を足す（`loosened-ci`）、`.githooks/` のフックから `autodev hook` の呼び出しを消す（`neutered-hook`）、`.devboard.json` の `hiddenPaths` から基点にあったパスを外す（`unhidden-path`）。`.autodev/workflow.json` の項目を基点より緩める（`loosened-workflow`）・崩す（`broken-workflow-config`）。変更が、自分を判定する仕組みを同じ変更で外せないようにするため（T-268）。いまは observe | `harness/src/checks/self-guard.ts` |
